@@ -77,6 +77,15 @@
                     android:textColor="@color/text_secondary"
                     android:textSize="14sp" />
 
+                <TextView
+                    android:id="@+id/textRuntimeDetail"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="14sp"
+                    android:visibility="gone" />
+
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -143,31 +152,36 @@
                         android:id="@+id/duration5"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/duration_5" />
+                        android:text="@string/duration_5"
+                        android:textColor="@color/text_primary" />
 
                     <RadioButton
                         android:id="@+id/duration10"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/duration_10" />
+                        android:text="@string/duration_10"
+                        android:textColor="@color/text_primary" />
 
                     <RadioButton
                         android:id="@+id/duration15"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/duration_15" />
+                        android:text="@string/duration_15"
+                        android:textColor="@color/text_primary" />
 
                     <RadioButton
                         android:id="@+id/duration30"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/duration_30" />
+                        android:text="@string/duration_30"
+                        android:textColor="@color/text_primary" />
 
                     <RadioButton
                         android:id="@+id/durationUnlimited"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/duration_unlimited" />
+                        android:text="@string/duration_unlimited"
+                        android:textColor="@color/text_primary" />
                 </RadioGroup>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -201,31 +215,36 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:text="@string/option_auto_run" />
+                    android:text="@string/option_auto_run"
+                    android:textColor="@color/text_primary" />
 
                 <com.google.android.material.switchmaterial.SwitchMaterial
                     android:id="@+id/switchSkipAds"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="@string/option_skip_ads" />
+                    android:text="@string/option_skip_ads"
+                    android:textColor="@color/text_primary" />
 
                 <com.google.android.material.switchmaterial.SwitchMaterial
                     android:id="@+id/switchRandomDelay"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="@string/option_random_delay" />
+                    android:text="@string/option_random_delay"
+                    android:textColor="@color/text_primary" />
 
                 <com.google.android.material.switchmaterial.SwitchMaterial
                     android:id="@+id/switchSinglePass"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="@string/option_single_pass" />
+                    android:text="@string/option_single_pass"
+                    android:textColor="@color/text_primary" />
 
                 <com.google.android.material.switchmaterial.SwitchMaterial
                     android:id="@+id/switchStopOnOld"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="@string/option_stop_on_old" />
+                    android:text="@string/option_stop_on_old"
+                    android:textColor="@color/text_primary" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -240,4 +259,3 @@
             android:textSize="13sp" />
     </LinearLayout>
 </ScrollView>
-

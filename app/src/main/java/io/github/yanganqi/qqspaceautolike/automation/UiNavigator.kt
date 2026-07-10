@@ -13,20 +13,36 @@ class UiNavigator(
         dismissCommonDialogs(rootProvider)
         if (isFeedVisible(rootProvider())) return true
 
-        clickAnyText(rootProvider, listOf("动态"))
-        randomDelay.afterNavigation()
-        dismissCommonDialogs(rootProvider)
+        tryOpenFeedEntry(rootProvider)
         if (isFeedVisible(rootProvider())) return true
-
-        clickAnyText(rootProvider, listOf("好友动态", "空间动态", "QQ空间"))
-        randomDelay.afterNavigation()
-        dismissCommonDialogs(rootProvider)
 
         repeat(18) {
             if (isFeedVisible(rootProvider())) return true
             dismissCommonDialogs(rootProvider)
-            randomDelay.shortWait()
+            if (tryOpenFeedEntry(rootProvider)) {
+                if (isFeedVisible(rootProvider())) return true
+            } else {
+                randomDelay.shortWait()
+            }
         }
+        return false
+    }
+
+    private suspend fun tryOpenFeedEntry(rootProvider: () -> AccessibilityNodeInfo?): Boolean {
+        val clickedSpaceEntry = clickAnyText(rootProvider, SPACE_ENTRY_LABELS)
+        if (clickedSpaceEntry) {
+            randomDelay.afterNavigation()
+            dismissCommonDialogs(rootProvider)
+            return true
+        }
+
+        val clickedDynamicTab = clickAnyText(rootProvider, DYNAMIC_TAB_LABELS)
+        if (clickedDynamicTab) {
+            randomDelay.afterNavigation()
+            dismissCommonDialogs(rootProvider)
+            return true
+        }
+
         return false
     }
 
@@ -58,6 +74,8 @@ class UiNavigator(
     }
 
     companion object {
+        private val DYNAMIC_TAB_LABELS = listOf("动态")
+        private val SPACE_ENTRY_LABELS = listOf("好友动态", "空间动态", "QQ空间")
         private val LIKE_LABELS = listOf("点赞", "赞", "已赞")
         private val COMMON_DIALOG_ACTIONS = listOf(
             "我知道了",
@@ -70,4 +88,3 @@ class UiNavigator(
         )
     }
 }
-

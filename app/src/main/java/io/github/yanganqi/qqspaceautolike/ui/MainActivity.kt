@@ -2,6 +2,7 @@ package io.github.yanganqi.qqspaceautolike.ui
 
 import android.Manifest
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -14,19 +15,23 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.isVisible
 import io.github.yanganqi.qqspaceautolike.R
 import io.github.yanganqi.qqspaceautolike.config.AppConfig
 import io.github.yanganqi.qqspaceautolike.config.ConfigStore
 import io.github.yanganqi.qqspaceautolike.config.RunDuration
 import io.github.yanganqi.qqspaceautolike.service.QqAutoLikeService
+import io.github.yanganqi.qqspaceautolike.service.RuntimeStatusStore
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var configStore: ConfigStore
+    private lateinit var runtimeStatusStore: RuntimeStatusStore
 
     private lateinit var textServiceStatus: TextView
     private lateinit var textQqStatus: TextView
     private lateinit var textRuntimeStatus: TextView
+    private lateinit var textRuntimeDetail: TextView
     private lateinit var durationGroup: RadioGroup
     private lateinit var switchAutoRun: SwitchCompat
     private lateinit var switchSkipAds: SwitchCompat
@@ -34,6 +39,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var switchSinglePass: SwitchCompat
     private lateinit var switchStopOnOld: SwitchCompat
 
+    private var runtimeStatusListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
     private var bindingUi = false
 
     private val notificationPermissionLauncher =
@@ -48,9 +54,17 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         configStore = ConfigStore(this)
+        runtimeStatusStore = RuntimeStatusStore(this)
         bindViews()
         bindActions()
         loadConfigIntoUi()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        runtimeStatusListener = runtimeStatusStore.registerListener {
+            runOnUiThread { refreshStatus() }
+        }
     }
 
     override fun onResume() {
@@ -59,10 +73,17 @@ class MainActivity : AppCompatActivity() {
         refreshStatus()
     }
 
+    override fun onStop() {
+        runtimeStatusListener?.let(runtimeStatusStore::unregisterListener)
+        runtimeStatusListener = null
+        super.onStop()
+    }
+
     private fun bindViews() {
         textServiceStatus = findViewById(R.id.textServiceStatus)
         textQqStatus = findViewById(R.id.textQqStatus)
         textRuntimeStatus = findViewById(R.id.textRuntimeStatus)
+        textRuntimeDetail = findViewById(R.id.textRuntimeDetail)
         durationGroup = findViewById(R.id.groupDuration)
         switchAutoRun = findViewById(R.id.switchAutoRun)
         switchSkipAds = findViewById(R.id.switchSkipAds)
@@ -170,8 +191,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun refreshStatus() {
+        val serviceEnabled = QqAutoLikeService.isServiceEnabled(this)
+        val qqInstalled = isQqInstalled()
+        val config = configStore.load()
+        val runtimeStatus = runtimeStatusStore.load()
+
         textServiceStatus.setText(
-            if (QqAutoLikeService.isServiceEnabled(this)) {
+            if (serviceEnabled) {
                 R.string.status_service_enabled
             } else {
                 R.string.status_service_disabled
@@ -179,21 +205,30 @@ class MainActivity : AppCompatActivity() {
         )
 
         textQqStatus.setText(
-            if (isQqInstalled()) {
+            if (qqInstalled) {
                 R.string.status_qq_installed
             } else {
                 R.string.status_qq_missing
             },
         )
 
-        val config = configStore.load()
         textRuntimeStatus.setText(
             when {
-                QqAutoLikeService.isAutomationRunning() -> R.string.status_runtime_running
-                config.autoRunOnQqOpen && QqAutoLikeService.isServiceEnabled(this) -> R.string.status_runtime_waiting
+                runtimeStatus.isRunning || QqAutoLikeService.isAutomationRunning() -> R.string.status_runtime_running
+                config.autoRunOnQqOpen && serviceEnabled -> R.string.status_runtime_waiting
                 else -> R.string.status_runtime_idle
             },
         )
+
+        val detailText = runtimeStatus.message?.let { message ->
+            if (runtimeStatus.isRunning || QqAutoLikeService.isAutomationRunning()) {
+                getString(R.string.status_runtime_progress, message)
+            } else {
+                getString(R.string.status_runtime_last_result, message)
+            }
+        }.orEmpty()
+        textRuntimeDetail.text = detailText
+        textRuntimeDetail.isVisible = detailText.isNotBlank()
     }
 
     private fun ensureNotificationPermissionIfNeeded() {

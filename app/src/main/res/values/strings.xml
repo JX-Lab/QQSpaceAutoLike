@@ -39,5 +39,6 @@
     <string name="status_runtime_idle">当前状态：空闲</string>
     <string name="status_runtime_running">当前状态：正在执行补赞流程</string>
     <string name="status_runtime_waiting">当前状态：等待你打开手机 QQ</string>
+    <string name="status_runtime_progress">执行进度：%1$s</string>
+    <string name="status_runtime_last_result">最近结果：%1$s</string>
 </resources>
-

@@ -25,6 +25,7 @@ class QqAutoLikeService : AccessibilityService() {
 
     private lateinit var configStore: ConfigStore
     private lateinit var notificationFactory: ServiceNotificationFactory
+    private lateinit var runtimeStatusStore: RuntimeStatusStore
     private var configListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
 
     @Volatile
@@ -44,9 +45,14 @@ class QqAutoLikeService : AccessibilityService() {
         instance = this
         configStore = ConfigStore(this)
         notificationFactory = ServiceNotificationFactory(this)
+        runtimeStatusStore = RuntimeStatusStore(this)
         currentConfig = configStore.load()
         configListener = configStore.registerListener { config ->
             currentConfig = config
+        }
+        val runtimeStatus = runtimeStatusStore.load()
+        if (runtimeStatus.isRunning) {
+            runtimeStatusStore.setFinished(runtimeStatus.message ?: "服务已重连")
         }
     }
 
@@ -94,26 +100,30 @@ class QqAutoLikeService : AccessibilityService() {
 
         stopRequested = false
         if (trigger == Trigger.MANUAL && currentObservedPackage() != QQ_PACKAGE_NAME) {
-            launchQq(this)
+            updateRunningStatus("正在拉起手机 QQ")
+            if (!launchQq(this)) {
+                finishStatus("无法打开手机 QQ")
+                return false
+            }
         }
 
         val configSnapshot = currentConfig
         automationJob = serviceScope.launch {
-            notificationFactory.showRunning(getString(io.github.yanganqi.qqspaceautolike.R.string.notification_running_text))
+            updateRunningStatus(getString(io.github.yanganqi.qqspaceautolike.R.string.notification_running_text))
             try {
                 val summary = AutomationOrchestrator(
                     service = this@QqAutoLikeService,
                     config = configSnapshot,
                     stopRequested = ::isStopRequested,
-                    onStatus = ::updateStatus,
+                    onStatus = ::updateRunningStatus,
                 ).run()
-                updateStatus("本轮结束：${summary.reason}；点赞 ${summary.likesPerformed} 条")
+                finishStatus("本轮结束：${summary.reason}；点赞 ${summary.likesPerformed} 条")
                 delay(900)
             } catch (cancelled: CancellationException) {
-                updateStatus("任务已停止")
+                finishStatus("任务已停止")
                 throw cancelled
             } catch (error: Throwable) {
-                updateStatus("执行失败：${error.message ?: "未知错误"}")
+                finishStatus("执行失败：${error.message ?: "未知错误"}")
                 delay(1_200)
             } finally {
                 notificationFactory.cancel()
@@ -128,8 +138,14 @@ class QqAutoLikeService : AccessibilityService() {
         return stopRequested
     }
 
-    private fun updateStatus(text: String) {
+    private fun updateRunningStatus(text: String) {
         notificationFactory.showRunning(text)
+        runtimeStatusStore.setRunning(text)
+    }
+
+    private fun finishStatus(text: String) {
+        notificationFactory.showRunning(text)
+        runtimeStatusStore.setFinished(text)
     }
 
     private fun requestStop(reason: String): Boolean {
