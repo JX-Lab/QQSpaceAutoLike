@@ -90,16 +90,7 @@ class UiNavigator(
     }
 
     private fun isFeedVisible(root: AccessibilityNodeInfo?): Boolean {
-        if (root == null) return false
-        val allTexts = NodeUtils.allTexts(root)
-        val strongMarkerHits = FEED_PAGE_MARKERS.count { marker ->
-            allTexts.any { text -> text.contains(marker, ignoreCase = true) }
-        }
-        if (strongMarkerHits >= 2) return true
-        val likeNode = NodeUtils.findFirstByAnyText(root, LIKE_LABELS, exact = false)
-        return strongMarkerHits >= 1 &&
-            likeNode != null &&
-            root.packageName?.toString() == service.rootInActiveWindow?.packageName?.toString()
+        return isLikelySpaceFeed(root)
     }
 
     private suspend fun dismissCommonDialogs(rootProvider: () -> AccessibilityNodeInfo?) {
@@ -122,6 +113,8 @@ class UiNavigator(
             "谁看过我",
         )
         private val LIKE_LABELS = listOf("点赞", "赞", "已赞")
+        private val ACTION_MARKERS = listOf("点赞", "已赞", "评论", "分享", "转发")
+        private val RELATIVE_TIME_MARKERS = listOf("刚刚", "今天", "昨天", "前天", "分钟前", "小时前", "天前")
         private val COMMON_DIALOG_ACTIONS = listOf(
             "我知道了",
             "知道了",
@@ -131,5 +124,23 @@ class UiNavigator(
             "跳过",
             "稍后再说",
         )
+
+        fun isLikelySpaceFeed(root: AccessibilityNodeInfo?): Boolean {
+            if (root == null) return false
+            val allTexts = NodeUtils.allTexts(root)
+            val strongMarkerHits = FEED_PAGE_MARKERS.count { marker ->
+                allTexts.any { text -> text.contains(marker, ignoreCase = true) }
+            }
+            if (strongMarkerHits >= 2) return true
+
+            val hasActionMarker = ACTION_MARKERS.any { marker ->
+                allTexts.any { text -> text.contains(marker, ignoreCase = true) }
+            }
+            val hasRelativeTime = RELATIVE_TIME_MARKERS.any { marker ->
+                allTexts.any { text -> text.contains(marker, ignoreCase = true) }
+            }
+            return (strongMarkerHits >= 1 && (hasActionMarker || hasRelativeTime)) ||
+                (hasActionMarker && hasRelativeTime)
+        }
     }
 }

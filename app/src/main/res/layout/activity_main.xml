@@ -171,26 +171,26 @@
                         android:textColor="@color/text_primary" />
 
                     <RadioButton
-                        android:id="@+id/duration15"
+                        android:id="@+id/durationCustom"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/duration_15"
-                        android:textColor="@color/text_primary" />
-
-                    <RadioButton
-                        android:id="@+id/duration30"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/duration_30"
-                        android:textColor="@color/text_primary" />
-
-                    <RadioButton
-                        android:id="@+id/durationUnlimited"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/duration_unlimited"
+                        android:text="@string/duration_custom"
                         android:textColor="@color/text_primary" />
                 </RadioGroup>
+
+                <EditText
+                    android:id="@+id/inputCustomDuration"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:backgroundTint="@color/accent"
+                    android:hint="@string/hint_custom_duration"
+                    android:importantForAutofill="no"
+                    android:inputType="number"
+                    android:maxLength="3"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_secondary"
+                    android:visibility="gone" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

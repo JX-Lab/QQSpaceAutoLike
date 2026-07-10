@@ -12,9 +12,8 @@
     <string name="action_open_qq">打开手机 QQ</string>
     <string name="duration_5">5 分钟</string>
     <string name="duration_10">10 分钟</string>
-    <string name="duration_15">15 分钟</string>
-    <string name="duration_30">30 分钟</string>
-    <string name="duration_unlimited">不限时</string>
+    <string name="duration_custom">自定义时长</string>
+    <string name="hint_custom_duration">输入分钟数（1-120）</string>
     <string name="option_auto_run">打开 QQ 时自动补赞一次</string>
     <string name="option_skip_ads">跳过广告、推广、小世界等内容</string>
     <string name="option_random_delay">启用随机等待与随机滑动</string>

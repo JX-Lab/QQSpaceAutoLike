@@ -17,11 +17,12 @@ class FeedScanner(
         rootProvider: () -> AccessibilityNodeInfo?,
         onStatus: (String) -> Unit,
     ): ScanSummary {
-        val deadline = config.runDuration.minutes?.let { System.currentTimeMillis() + it * 60_000L }
+        val deadline = config.effectiveRunMinutes()?.let { System.currentTimeMillis() + it * 60_000L }
         val seenNodes = linkedSetOf<String>()
         var likes = 0
         var scrolls = 0
         var idleRounds = 0
+        var feedConfirmed = false
 
         while (!stopRequested()) {
             if (deadline != null && System.currentTimeMillis() >= deadline) {
@@ -35,10 +36,19 @@ class FeedScanner(
                 continue
             }
 
+            val looksLikeSpaceFeed = UiNavigator.isLikelySpaceFeed(root)
+            if (feedConfirmed && !looksLikeSpaceFeed && looksLikeManualInterruption(root)) {
+                return ScanSummary(likes, scrolls, "检测到你已切到其他 QQ 页面，当前任务已停止")
+            }
+            if (looksLikeSpaceFeed) {
+                feedConfirmed = true
+            }
+
             if (config.stopOnOlderPosts && classifier.reachedOlderContent(root, config.maxPostAgeDays)) {
                 return ScanSummary(likes, scrolls, "检测到超过 ${config.maxPostAgeDays} 天的动态")
             }
 
+            val visibleActionBar = hasVisibleActionBar(root)
             var likedThisRound = 0
             findLikeCandidates(root).forEach { node ->
                 if (stopRequested()) return@forEach
@@ -56,8 +66,15 @@ class FeedScanner(
                 }
             }
 
-            idleRounds = if (likedThisRound == 0) idleRounds + 1 else 0
-            if (config.singlePassPerOpen && idleRounds >= MAX_IDLE_ROUNDS) {
+            idleRounds = when {
+                likedThisRound > 0 -> 0
+                !visibleActionBar -> 0
+                else -> idleRounds + 1
+            }
+            if (likedThisRound == 0 && !visibleActionBar) {
+                onStatus("当前页面还没露出点赞区，继续下滑")
+            }
+            if (config.singlePassPerOpen && visibleActionBar && idleRounds >= MAX_IDLE_ROUNDS) {
                 return ScanSummary(likes, scrolls, "连续多次未发现可点赞内容")
             }
 
@@ -71,6 +88,20 @@ class FeedScanner(
         }
 
         return ScanSummary(likes, scrolls, "任务已被停止")
+    }
+
+    private fun hasVisibleActionBar(root: AccessibilityNodeInfo): Boolean {
+        return NodeUtils.allTexts(root).any { text ->
+            ACTION_ROW_KEYWORDS.any { keyword -> text.contains(keyword, ignoreCase = true) }
+        }
+    }
+
+    private fun looksLikeManualInterruption(root: AccessibilityNodeInfo): Boolean {
+        val allTexts = NodeUtils.allTexts(root)
+        val hits = INTERRUPTION_MARKERS.count { marker ->
+            allTexts.any { text -> text.contains(marker, ignoreCase = true) }
+        }
+        return hits >= 2
     }
 
     private fun findLikeCandidates(root: AccessibilityNodeInfo): List<AccessibilityNodeInfo> {
@@ -152,10 +183,11 @@ class FeedScanner(
     }
 
     companion object {
-        private const val MAX_IDLE_ROUNDS = 4
+        private const val MAX_IDLE_ROUNDS = 6
         private val LIKE_KEYWORDS = listOf("点赞", "赞", "like")
         private val RESOURCE_ID_KEYWORDS = listOf("like", "zan", "praise", "thumb")
         private val ACTION_ROW_KEYWORDS = listOf("评论", "转发", "分享")
+        private val INTERRUPTION_MARKERS = listOf("消息", "联系人", "群聊", "发送", "搜索")
         private val NEGATIVE_KEYWORDS = listOf("取消赞", "收回赞", "赞了", "赞过", "赞同")
     }
 }

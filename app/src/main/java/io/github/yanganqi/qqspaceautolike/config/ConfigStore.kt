@@ -18,6 +18,7 @@ class ConfigStore(context: Context) {
             stopOnOlderPosts = preferences.getBoolean(KEY_STOP_ON_OLD, true),
             maxPostAgeDays = preferences.getInt(KEY_MAX_POST_AGE_DAYS, AppConfig.DEFAULT_MAX_POST_AGE_DAYS),
             runDuration = RunDuration.fromPreference(preferences.getString(KEY_RUN_DURATION, RunDuration.MINUTES_10.preferenceValue)),
+            customRunMinutes = preferences.getInt(KEY_CUSTOM_RUN_MINUTES, AppConfig.DEFAULT_CUSTOM_RUN_MINUTES),
         )
     }
 
@@ -30,6 +31,7 @@ class ConfigStore(context: Context) {
             putBoolean(KEY_STOP_ON_OLD, config.stopOnOlderPosts)
             putInt(KEY_MAX_POST_AGE_DAYS, config.maxPostAgeDays)
             putString(KEY_RUN_DURATION, config.runDuration.preferenceValue)
+            putInt(KEY_CUSTOM_RUN_MINUTES, config.customRunMinutes)
         }
     }
 
@@ -54,6 +56,6 @@ class ConfigStore(context: Context) {
         private const val KEY_STOP_ON_OLD = "stop_on_old"
         private const val KEY_MAX_POST_AGE_DAYS = "max_post_age_days"
         private const val KEY_RUN_DURATION = "run_duration"
+        private const val KEY_CUSTOM_RUN_MINUTES = "custom_run_minutes"
     }
 }
-

@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Button
+import android.widget.EditText
 import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
@@ -16,6 +17,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
+import androidx.core.widget.doAfterTextChanged
 import io.github.yanganqi.qqspaceautolike.R
 import io.github.yanganqi.qqspaceautolike.config.AppConfig
 import io.github.yanganqi.qqspaceautolike.config.ConfigStore
@@ -33,6 +35,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var textRuntimeStatus: TextView
     private lateinit var textRuntimeDetail: TextView
     private lateinit var durationGroup: RadioGroup
+    private lateinit var inputCustomDuration: EditText
     private lateinit var btnStopRun: Button
     private lateinit var switchAutoRun: SwitchCompat
     private lateinit var switchSkipAds: SwitchCompat
@@ -86,6 +89,7 @@ class MainActivity : AppCompatActivity() {
         textRuntimeStatus = findViewById(R.id.textRuntimeStatus)
         textRuntimeDetail = findViewById(R.id.textRuntimeDetail)
         durationGroup = findViewById(R.id.groupDuration)
+        inputCustomDuration = findViewById(R.id.inputCustomDuration)
         btnStopRun = findViewById(R.id.btnStopRun)
         switchAutoRun = findViewById(R.id.switchAutoRun)
         switchSkipAds = findViewById(R.id.switchSkipAds)
@@ -138,6 +142,13 @@ class MainActivity : AppCompatActivity() {
 
         durationGroup.setOnCheckedChangeListener { _, _ ->
             if (!bindingUi) {
+                syncCustomDurationVisibility()
+                persistCurrentUiState()
+            }
+        }
+
+        inputCustomDuration.doAfterTextChanged {
+            if (!bindingUi && selectedDuration() == RunDuration.CUSTOM) {
                 persistCurrentUiState()
             }
         }
@@ -166,15 +177,15 @@ class MainActivity : AppCompatActivity() {
         switchRandomDelay.isChecked = config.randomDelay
         switchSinglePass.isChecked = config.singlePassPerOpen
         switchStopOnOld.isChecked = config.stopOnOlderPosts
+        inputCustomDuration.setText(config.customRunMinutes.toString())
         durationGroup.check(
             when (config.runDuration) {
                 RunDuration.MINUTES_5 -> R.id.duration5
                 RunDuration.MINUTES_10 -> R.id.duration10
-                RunDuration.MINUTES_15 -> R.id.duration15
-                RunDuration.MINUTES_30 -> R.id.duration30
-                RunDuration.UNLIMITED -> R.id.durationUnlimited
+                RunDuration.CUSTOM -> R.id.durationCustom
             },
         )
+        syncCustomDurationVisibility()
         bindingUi = false
     }
 
@@ -187,6 +198,7 @@ class MainActivity : AppCompatActivity() {
                 singlePassPerOpen = switchSinglePass.isChecked,
                 stopOnOlderPosts = switchStopOnOld.isChecked,
                 runDuration = selectedDuration(),
+                customRunMinutes = selectedCustomRunMinutes(),
             ),
         )
     }
@@ -194,11 +206,21 @@ class MainActivity : AppCompatActivity() {
     private fun selectedDuration(): RunDuration {
         return when (durationGroup.checkedRadioButtonId) {
             R.id.duration5 -> RunDuration.MINUTES_5
-            R.id.duration15 -> RunDuration.MINUTES_15
-            R.id.duration30 -> RunDuration.MINUTES_30
-            R.id.durationUnlimited -> RunDuration.UNLIMITED
+            R.id.durationCustom -> RunDuration.CUSTOM
             else -> RunDuration.MINUTES_10
         }
+    }
+
+    private fun selectedCustomRunMinutes(): Int {
+        return inputCustomDuration.text?.toString()
+            ?.trim()
+            ?.toIntOrNull()
+            ?.coerceIn(AppConfig.MIN_CUSTOM_RUN_MINUTES, AppConfig.MAX_CUSTOM_RUN_MINUTES)
+            ?: AppConfig.DEFAULT_CUSTOM_RUN_MINUTES
+    }
+
+    private fun syncCustomDurationVisibility() {
+        inputCustomDuration.isVisible = selectedDuration() == RunDuration.CUSTOM
     }
 
     private fun refreshStatus() {
