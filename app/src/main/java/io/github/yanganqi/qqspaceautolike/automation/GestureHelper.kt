@@ -27,8 +27,8 @@ class GestureHelper(
         val metrics = service.resources.displayMetrics
         val startX = metrics.widthPixels / 2 + randomDelay.jitter(36)
         val endX = startX + randomDelay.jitter(18)
-        val startY = (metrics.heightPixels * 0.78f).toInt() + randomDelay.jitter(60)
-        val endY = (metrics.heightPixels * 0.30f).toInt() + randomDelay.jitter(50)
+        val startY = (metrics.heightPixels * 0.72f).toInt() + randomDelay.jitter(42)
+        val endY = (metrics.heightPixels * 0.44f).toInt() + randomDelay.jitter(30)
         return performSwipe(startX, startY, endX, endY, randomDelay.scrollDurationMs())
     }
 
@@ -81,4 +81,3 @@ class GestureHelper(
         }
     }
 }
-

@@ -8,6 +8,7 @@ import android.content.SharedPreferences
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityManager
 import io.github.yanganqi.qqspaceautolike.automation.AutomationOrchestrator
+import io.github.yanganqi.qqspaceautolike.automation.UiNavigator
 import io.github.yanganqi.qqspaceautolike.config.AppConfig
 import io.github.yanganqi.qqspaceautolike.config.ConfigStore
 import kotlinx.coroutines.CancellationException
@@ -38,6 +39,12 @@ class QqAutoLikeService : AccessibilityService() {
     @Volatile
     private var lastObservedPackage: String? = null
 
+    @Volatile
+    private var requireSpaceReentryAfterStop = false
+
+    @Volatile
+    private var spaceExitObservedAfterStop = false
+
     private var qqSessionConsumed = false
     private var automationJob: Job? = null
 
@@ -63,6 +70,7 @@ class QqAutoLikeService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val packageName = event?.packageName?.toString() ?: return
         handlePackageTransition(packageName)
+        updateAutoRunEligibility(packageName)
 
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
             packageName == QQ_PACKAGE_NAME &&
@@ -97,15 +105,44 @@ class QqAutoLikeService : AccessibilityService() {
 
     private fun handlePackageTransition(packageName: String) {
         if (lastObservedPackage == QQ_PACKAGE_NAME && packageName != QQ_PACKAGE_NAME) {
-            qqSessionConsumed = false
+            if (!requireSpaceReentryAfterStop && packageName != this.packageName) {
+                qqSessionConsumed = false
+            }
         }
         lastObservedPackage = packageName
+    }
+
+    private fun updateAutoRunEligibility(packageName: String) {
+        if (!requireSpaceReentryAfterStop) return
+
+        if (packageName != QQ_PACKAGE_NAME) {
+            if (packageName != this.packageName) {
+                spaceExitObservedAfterStop = true
+            }
+            return
+        }
+
+        val inSpaceContext = UiNavigator.isSpaceContextVisible(rootInActiveWindow)
+        if (!inSpaceContext) {
+            spaceExitObservedAfterStop = true
+            return
+        }
+
+        if (spaceExitObservedAfterStop) {
+            requireSpaceReentryAfterStop = false
+            spaceExitObservedAfterStop = false
+            qqSessionConsumed = false
+        }
     }
 
     private fun startAutomation(trigger: Trigger): Boolean {
         if (automationJob?.isActive == true) return false
 
         stopRequested = false
+        if (trigger == Trigger.MANUAL) {
+            requireSpaceReentryAfterStop = false
+            spaceExitObservedAfterStop = false
+        }
         if (trigger == Trigger.MANUAL && currentObservedPackage() != QQ_PACKAGE_NAME) {
             updateRunningStatus("正在拉起手机 QQ")
             if (!launchQq(this)) {
@@ -159,6 +196,11 @@ class QqAutoLikeService : AccessibilityService() {
 
     private fun requestStop(reason: String): Boolean {
         val job = automationJob ?: return false
+        if (reason == "external request" || reason == "overlay stop button") {
+            requireSpaceReentryAfterStop = true
+            spaceExitObservedAfterStop = false
+            qqSessionConsumed = true
+        }
         stopRequested = true
         job.cancel(CancellationException(reason))
         return true

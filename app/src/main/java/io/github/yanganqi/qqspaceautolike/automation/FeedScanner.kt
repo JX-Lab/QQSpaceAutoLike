@@ -21,7 +21,6 @@ class FeedScanner(
         val seenNodes = linkedSetOf<String>()
         var likes = 0
         var scrolls = 0
-        var idleRounds = 0
         var feedConfirmed = false
 
         while (!stopRequested()) {
@@ -69,16 +68,11 @@ class FeedScanner(
                 }
             }
 
-            idleRounds = when {
-                likedThisRound > 0 -> 0
-                !visibleActionBar -> 0
-                else -> idleRounds + 1
-            }
             if (likedThisRound == 0 && !visibleActionBar) {
                 onStatus("当前页面还没露出点赞区，继续下滑")
             }
-            if (config.singlePassPerOpen && visibleActionBar && idleRounds >= MAX_IDLE_ROUNDS) {
-                return ScanSummary(likes, scrolls, "连续多次未发现可点赞内容")
+            if (likedThisRound == 0 && visibleActionBar) {
+                onStatus("当前这屏没有可点赞内容，继续下滑")
             }
 
             if (!gestureHelper.scrollDown(root)) {
@@ -130,7 +124,6 @@ class FeedScanner(
     }
 
     companion object {
-        private const val MAX_IDLE_ROUNDS = 4
         private val LIKE_KEYWORDS = listOf("点赞", "赞", "like")
         private val ACTION_ROW_KEYWORDS = listOf("评论", "转发", "分享")
         private val NEGATIVE_KEYWORDS = listOf("取消赞", "收回赞", "赞了", "赞过", "赞同")
