@@ -91,6 +91,7 @@ class CardClassifier(
         private val DEFAULT_BLOCKED_KEYWORDS = setOf(
             "广告",
             "推广",
+            "空友爱看",
             "QQ小世界",
             "小世界",
             "小游戏",
@@ -99,6 +100,8 @@ class CardClassifier(
             "热推",
             "品牌馆",
             "推荐",
+            "黄钻",
+            "续费",
         )
     }
 }
