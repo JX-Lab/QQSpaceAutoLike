@@ -1,161 +1,130 @@
 # QQSpaceAutoLike
 
-一个按 GitHub 仓库方式组织的 Android 项目，用来在手机 QQ 打开时，通过 `AccessibilityService` 自动进入空间动态并执行一轮补赞。
+`QQSpaceAutoLike` is an Android app prototype that uses `AccessibilityService` to open mobile QQ, navigate into Qzone, scan feed cards, and perform a controlled "like back" pass.
 
-这个仓库是根据你给的分享链接里的思路落下来的原生安卓版本，不走 `Auto.js` 脚本路线，而是用 `Kotlin + AccessibilityService` 做成可长期维护的工程。
+The project is implemented as a native Android app with `Kotlin`, not an `Auto.js` script. The goal is to keep the automation logic maintainable, testable, and easy to adjust for different QQ UI variants.
 
-## 当前状态
+## Status
 
-- 已完成标准 Android 仓库骨架
-- 已完成设置页、配置持久化、通知栏停止按钮
-- 已完成无障碍服务主链路
-- 已完成基础导航、点赞扫描、广告过滤、随机等待、老动态停止逻辑
-- 已补齐 GitHub Actions 自动构建 APK 与 Release 发版流程
-- 当前环境还没有本地实际编译 APK
+- Android app scaffold is complete
+- Accessibility service flow is implemented
+- Basic navigation, feed scanning, ad filtering, random delay, and stop conditions are implemented
+- GitHub Actions can build a debug APK on push and publish a release APK on tag
+- The app still requires real-device tuning against specific QQ versions
 
-原因：
+## What It Does
 
-- 当前工作环境没有安装 `java`
-- 当前工作环境没有安装 `Android SDK`
-- 当前工作环境也没有 `gh` CLI 和 GitHub 登录态
-- 因此我在 **2026-07-10** 只能完成代码、仓库结构与 GitHub 自动打包流程，不能在本机做 `assembleDebug`
+- Watches for QQ entering the foreground
+- Tries to enter `动态` and then `好友动态 / 空间动态`
+- Scans visible cards for likely "like" controls
+- Skips obvious ads, promoted content, and already-processed nodes
+- Stops after timeout, repeated no-op scans, or old feed items
+- Exposes a notification action to stop the run manually
 
-## 功能设计
+## Non-Goals
 
-- 只在手机 QQ 进入前台时自动执行一轮
-- 不需要 Root
-- 不修改 QQ
-- 不调用私有 QQ 接口
-- 支持运行时长配置：`5 / 10 / 15 / 30 分钟 / 不限时`
-- 支持跳过广告、推广、小世界等内容
-- 支持随机等待与随机滑动
-- 支持连续多次找不到新赞后自动结束
-- 支持发现超过 3 天的动态后停止
-- 支持通知栏手动停止
+- No root access
+- No QQ app modification
+- No use of private QQ APIs
+- No guarantee that every QQ version exposes the same accessibility tree
 
-## 目录结构
+## Project Layout
 
 ```text
 QQSpaceAutoLike/
-├── .github/workflows/android.yml
-├── .github/workflows/release.yml
+├── .github/workflows/
+│   ├── android.yml
+│   └── release.yml
 ├── app/
-│   ├── build.gradle.kts
 │   └── src/main/
-│       ├── AndroidManifest.xml
 │       ├── java/io/github/yanganqi/qqspaceautolike/
 │       │   ├── automation/
 │       │   ├── config/
 │       │   ├── service/
 │       │   └── ui/
-│       └── res/
+│       ├── res/
+│       └── AndroidManifest.xml
 ├── gradle/
-├── gradlew
-├── gradlew.bat
-└── README.md
+├── build.gradle.kts
+└── settings.gradle.kts
 ```
 
-## 自动化主流程
+## How It Works
 
 ```text
-打开 QQ
+QQ enters foreground
   ↓
-无障碍服务收到 QQ 前台事件
+Accessibility service receives the event
   ↓
-尝试进入 “动态”
+Try to enter Qzone feed
   ↓
-尝试进入 “好友动态 / 空间动态”
+Scan visible nodes for candidate like buttons
   ↓
-扫描当前屏幕上的点赞按钮
+Filter ads / duplicates / invalid targets
   ↓
-跳过广告 / 已点赞 / 重复节点
+Click with randomized pacing
   ↓
-随机等待
+Scroll and continue
   ↓
-下滑继续扫描
-  ↓
-达到时长 / 遇到旧动态 / 连续无新赞
-  ↓
-停止
+Stop on timeout / old content / repeated no-progress scans
 ```
 
-## 关键实现点
+## Key Implementation Notes
 
-- 不写死坐标定位入口，而是优先通过控件文本和可点击父节点定位
-- 下滑优先尝试 `ACTION_SCROLL_FORWARD`，失败后再走手势滑动
-- 点赞按钮用“文本/描述 + 可点击性 + 屏幕右半区 + 尺寸限制”做启发式过滤
-- 广告过滤通过按钮周边控件树文本判断，而不是只看单个节点
-- 老动态判断支持 `昨天 / 前天 / N天前 / 7月10日 / 2026-07-10` 这类格式
+- Navigation prefers text labels and clickable parent nodes over fixed coordinates
+- Scroll prefers `ACTION_SCROLL_FORWARD`, then falls back to gestures
+- Like detection uses a heuristic mix of text/content-description, clickability, size, and screen position
+- Ad filtering uses surrounding subtree text instead of a single node label
+- Old-feed detection supports formats such as `昨天`, `前天`, `N天前`, `7月10日`, and `2026-07-10`
 
-## 使用方式
+## Build
 
-1. 用 Android Studio 打开仓库根目录 `QQSpaceAutoLike`
-2. 让 Gradle 同步依赖
-3. 配置本机 `Android SDK` 与 `JDK 17`
-4. 运行到安卓设备
-5. 在应用内打开“无障碍设置”
-6. 给通知权限
-7. 打开手机 QQ，观察是否能进入动态并开始补赞
+Requirements:
 
-## 手机下载安装
+- `JDK 17`
+- Android SDK
+- Android Studio or a working Gradle Android toolchain
 
-这个项目现在按 Android `app` 处理，不是浏览器插件。
+Local build:
 
-- 日常测试包：推送到 `main` 后，GitHub Actions 会自动构建 `app-debug.apk`
-- 直接下载包：给仓库打 `v*` 标签后，GitHub Release 会自动挂出可下载安装的测试 APK
-- 安装前需要在手机上允许“安装未知应用”
+```bash
+./gradlew assembleDebug
+```
 
-推荐发布测试包的命令：
+## Install And Test
+
+1. Build or download the debug APK
+2. Install it on an Android device
+3. Enable the app's accessibility service
+4. Grant notification permission if prompted
+5. Open mobile QQ and observe whether the app can enter Qzone and start a pass
+
+## GitHub Actions
+
+- Push to `main`: builds `app-debug.apk` as an Actions artifact
+- Push a tag like `v0.1.0`: publishes a prerelease APK in GitHub Releases
+
+Example:
 
 ```bash
 git tag v0.1.0
 git push origin main --tags
 ```
 
-完成后可以在仓库的 `Releases` 页面直接下载 APK 到手机测试。
+## Known Risks
 
-## 需要你自己验证的点
+- QQ UI copy and layout can change across versions
+- Some ROMs aggressively throttle accessibility events
+- Some like buttons may not expose usable text or descriptions
+- Heuristics for ads and old content still need device-specific tuning
 
-- 不同 QQ 版本里“动态 / 好友动态 / 空间动态”的具体文案可能不同
-- 不同 ROM 对无障碍事件的节流策略不同
-- 有些点赞按钮可能没有直接暴露文本，需要继续补 OCR 或 viewId 规则
-- 广告关键词和误判规则后续还需要真机微调
+## Next Steps
 
-## 建议的下一步
+1. Capture accessibility node trees from the target QQ version
+2. Refine entry labels for `动态 / 好友动态 / 空间动态`
+3. Add more button-identification and ad-filter rules
+4. Validate stop conditions on real devices
 
-1. 真机抓一次 QQ 目标页面的无障碍节点树
-2. 根据你自己手机上的 QQ 版本补充入口文案
-3. 对点赞按钮、广告卡片、时间文案做针对性调试
-4. 再考虑加入黑名单、特别关心、仅最近 24 小时动态等策略
+## Disclaimer
 
-## 推到 GitHub
-
-目标仓库建议直接用：
-
-```text
-https://github.com/JX-Lab/QQSpaceAutoLike
-```
-
-当前环境没有 `gh` CLI，也没有可用的 GitHub 登录态，所以我不能直接替你在 GitHub 上创建仓库；但本地仓库已经整理成可直接推送的状态。你在 GitHub 先新建一个空仓库 `JX-Lab/QQSpaceAutoLike` 之后，只需要：
-
-```bash
-cd /mnt/disk1/yanganqi/QQSpaceAutoLike
-git config user.name "JX-Lab"
-git config user.email "JX-Lab@users.noreply.github.com"
-git add .
-git commit -m "Initial Android app scaffold for QQSpaceAutoLike"
-git branch -M main
-git remote add origin https://github.com/JX-Lab/QQSpaceAutoLike.git
-git push -u origin main
-```
-
-如果你更想用 SSH，也可以把远端换成：
-
-```bash
-git remote add origin git@github.com:JX-Lab/QQSpaceAutoLike.git
-```
-
-首推完成后：
-
-1. `Actions` 页面会自动开始构建测试 APK
-2. 打 tag 后，`Releases` 页面会出现可直接下载到手机的安装包
+This repository is a research/prototyping project around Android accessibility automation. Anyone using it is responsible for understanding the platform, app policy, and account-risk implications of automating user actions.
