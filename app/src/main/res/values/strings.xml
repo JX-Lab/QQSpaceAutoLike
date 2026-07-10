@@ -1,0 +1,43 @@
+<resources>
+    <string name="app_name">QQ 空间自动补赞</string>
+    <string name="accessibility_service_name">QQ 空间自动补赞服务</string>
+    <string name="accessibility_service_description">当手机 QQ 进入前台时，自动进入好友动态并执行一次补赞。</string>
+    <string name="screen_subtitle">面向手机 QQ 的无障碍自动化仓库骨架。默认只在 QQ 打开时跑一轮，不在后台常驻刷赞。</string>
+    <string name="status_title">运行状态</string>
+    <string name="runtime_title">运行时长</string>
+    <string name="options_title">执行选项</string>
+    <string name="action_enable_accessibility">打开无障碍设置</string>
+    <string name="action_run_once">立即执行一轮</string>
+    <string name="action_open_qq">打开手机 QQ</string>
+    <string name="duration_5">5 分钟</string>
+    <string name="duration_10">10 分钟</string>
+    <string name="duration_15">15 分钟</string>
+    <string name="duration_30">30 分钟</string>
+    <string name="duration_unlimited">不限时</string>
+    <string name="option_auto_run">打开 QQ 时自动补赞一次</string>
+    <string name="option_skip_ads">跳过广告、推广、小世界等内容</string>
+    <string name="option_random_delay">启用随机等待与随机滑动</string>
+    <string name="option_single_pass">没有新赞后尽快结束本轮</string>
+    <string name="option_stop_on_old">遇到超过 3 天的动态后停止</string>
+    <string name="disclaimer">说明：本项目采用 AccessibilityService 做 UI 自动化，不需要 Root、不修改 QQ、不调用私有接口。QQ 更新 UI 后，定位规则可能需要调整。</string>
+    <string name="notification_channel_name">QQ 自动补赞</string>
+    <string name="notification_channel_description">显示当前自动补赞状态，并允许随时停止。</string>
+    <string name="notification_running_title">QQ 自动补赞运行中</string>
+    <string name="notification_running_text">正在检查手机 QQ 前台并扫描空间动态。</string>
+    <string name="notification_action_stop">停止</string>
+    <string name="toast_accessibility_missing">请先在系统设置里启用无障碍服务。</string>
+    <string name="toast_notifications_missing">建议允许通知权限，否则无法显示停止按钮。</string>
+    <string name="toast_qq_missing">没有检测到手机 QQ 安装包。</string>
+    <string name="toast_run_started">已开始执行，若 QQ 不在前台会先尝试拉起。</string>
+    <string name="toast_run_failed">服务未就绪，无法开始执行。</string>
+    <string name="toast_run_stopped">已请求停止当前任务。</string>
+    <string name="toast_qq_open_failed">无法打开手机 QQ。</string>
+    <string name="status_service_enabled">无障碍服务：已启用</string>
+    <string name="status_service_disabled">无障碍服务：未启用</string>
+    <string name="status_qq_installed">手机 QQ：已检测到安装包</string>
+    <string name="status_qq_missing">手机 QQ：未检测到安装包</string>
+    <string name="status_runtime_idle">当前状态：空闲</string>
+    <string name="status_runtime_running">当前状态：正在执行补赞流程</string>
+    <string name="status_runtime_waiting">当前状态：等待你打开手机 QQ</string>
+</resources>
+

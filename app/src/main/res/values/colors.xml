@@ -1,0 +1,12 @@
+<resources>
+    <color name="surface">#F4F3EE</color>
+    <color name="card">#FFFDF7</color>
+    <color name="card_stroke">#D8D1C2</color>
+    <color name="text_primary">#1D2A32</color>
+    <color name="text_secondary">#586A73</color>
+    <color name="accent">#0D8ABC</color>
+    <color name="accent_dark">#08698E</color>
+    <color name="ic_launcher_background">#134D62</color>
+    <color name="white">#FFFFFF</color>
+</resources>
+
