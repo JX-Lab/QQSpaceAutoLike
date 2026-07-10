@@ -8,6 +8,7 @@
     <string name="options_title">执行选项</string>
     <string name="action_enable_accessibility">打开无障碍设置</string>
     <string name="action_run_once">立即执行一轮</string>
+    <string name="action_stop_run">停止当前任务</string>
     <string name="action_open_qq">打开手机 QQ</string>
     <string name="duration_5">5 分钟</string>
     <string name="duration_10">10 分钟</string>
@@ -25,12 +26,14 @@
     <string name="notification_running_title">QQ 自动补赞运行中</string>
     <string name="notification_running_text">正在检查手机 QQ 前台并扫描空间动态。</string>
     <string name="notification_action_stop">停止</string>
+    <string name="overlay_action_stop">停止补赞</string>
     <string name="toast_accessibility_missing">请先在系统设置里启用无障碍服务。</string>
     <string name="toast_notifications_missing">建议允许通知权限，否则无法显示停止按钮。</string>
     <string name="toast_qq_missing">没有检测到手机 QQ 安装包。</string>
     <string name="toast_run_started">已开始执行，若 QQ 不在前台会先尝试拉起。</string>
     <string name="toast_run_failed">服务未就绪，无法开始执行。</string>
     <string name="toast_run_stopped">已请求停止当前任务。</string>
+    <string name="toast_no_running_task">当前没有正在执行的任务。</string>
     <string name="toast_qq_open_failed">无法打开手机 QQ。</string>
     <string name="status_service_enabled">无障碍服务：已启用</string>
     <string name="status_service_disabled">无障碍服务：未启用</string>

@@ -26,6 +26,7 @@ class QqAutoLikeService : AccessibilityService() {
     private lateinit var configStore: ConfigStore
     private lateinit var notificationFactory: ServiceNotificationFactory
     private lateinit var runtimeStatusStore: RuntimeStatusStore
+    private lateinit var stopOverlayController: StopOverlayController
     private var configListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
 
     @Volatile
@@ -46,6 +47,9 @@ class QqAutoLikeService : AccessibilityService() {
         configStore = ConfigStore(this)
         notificationFactory = ServiceNotificationFactory(this)
         runtimeStatusStore = RuntimeStatusStore(this)
+        stopOverlayController = StopOverlayController(this) {
+            requestStop("overlay stop button")
+        }
         currentConfig = configStore.load()
         configListener = configStore.registerListener { config ->
             currentConfig = config
@@ -80,6 +84,9 @@ class QqAutoLikeService : AccessibilityService() {
             configListener?.let(configStore::unregisterListener)
         }
         configListener = null
+        if (::stopOverlayController.isInitialized) {
+            stopOverlayController.hide()
+        }
         requestStop("service destroyed")
         serviceScope.cancel()
         instance = null
@@ -110,6 +117,7 @@ class QqAutoLikeService : AccessibilityService() {
         val configSnapshot = currentConfig
         automationJob = serviceScope.launch {
             updateRunningStatus(getString(io.github.yanganqi.qqspaceautolike.R.string.notification_running_text))
+            stopOverlayController.show()
             try {
                 val summary = AutomationOrchestrator(
                     service = this@QqAutoLikeService,
@@ -126,6 +134,7 @@ class QqAutoLikeService : AccessibilityService() {
                 finishStatus("执行失败：${error.message ?: "未知错误"}")
                 delay(1_200)
             } finally {
+                stopOverlayController.hide()
                 notificationFactory.cancel()
                 stopRequested = false
                 automationJob = null

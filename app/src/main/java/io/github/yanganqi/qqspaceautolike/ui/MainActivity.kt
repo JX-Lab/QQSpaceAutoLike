@@ -33,6 +33,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var textRuntimeStatus: TextView
     private lateinit var textRuntimeDetail: TextView
     private lateinit var durationGroup: RadioGroup
+    private lateinit var btnStopRun: Button
     private lateinit var switchAutoRun: SwitchCompat
     private lateinit var switchSkipAds: SwitchCompat
     private lateinit var switchRandomDelay: SwitchCompat
@@ -85,6 +86,7 @@ class MainActivity : AppCompatActivity() {
         textRuntimeStatus = findViewById(R.id.textRuntimeStatus)
         textRuntimeDetail = findViewById(R.id.textRuntimeDetail)
         durationGroup = findViewById(R.id.groupDuration)
+        btnStopRun = findViewById(R.id.btnStopRun)
         switchAutoRun = findViewById(R.id.switchAutoRun)
         switchSkipAds = findViewById(R.id.switchSkipAds)
         switchRandomDelay = findViewById(R.id.switchRandomDelay)
@@ -121,6 +123,15 @@ class MainActivity : AppCompatActivity() {
                 toast(R.string.toast_run_started)
             } else {
                 toast(R.string.toast_run_failed)
+            }
+            refreshStatus()
+        }
+
+        btnStopRun.setOnClickListener {
+            if (QqAutoLikeService.requestStop()) {
+                toast(R.string.toast_run_stopped)
+            } else {
+                toast(R.string.toast_no_running_task)
             }
             refreshStatus()
         }
@@ -195,6 +206,7 @@ class MainActivity : AppCompatActivity() {
         val qqInstalled = isQqInstalled()
         val config = configStore.load()
         val runtimeStatus = runtimeStatusStore.load()
+        val isRunning = runtimeStatus.isRunning || QqAutoLikeService.isAutomationRunning()
 
         textServiceStatus.setText(
             if (serviceEnabled) {
@@ -214,7 +226,7 @@ class MainActivity : AppCompatActivity() {
 
         textRuntimeStatus.setText(
             when {
-                runtimeStatus.isRunning || QqAutoLikeService.isAutomationRunning() -> R.string.status_runtime_running
+                isRunning -> R.string.status_runtime_running
                 config.autoRunOnQqOpen && serviceEnabled -> R.string.status_runtime_waiting
                 else -> R.string.status_runtime_idle
             },
@@ -229,6 +241,7 @@ class MainActivity : AppCompatActivity() {
         }.orEmpty()
         textRuntimeDetail.text = detailText
         textRuntimeDetail.isVisible = detailText.isNotBlank()
+        btnStopRun.isEnabled = isRunning
     }
 
     private fun ensureNotificationPermissionIfNeeded() {

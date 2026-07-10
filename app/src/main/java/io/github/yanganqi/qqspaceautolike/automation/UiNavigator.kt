@@ -9,41 +9,72 @@ class UiNavigator(
     private val randomDelay: RandomDelay,
 ) {
 
-    suspend fun openQqSpaceFeed(rootProvider: () -> AccessibilityNodeInfo?): Boolean {
+    suspend fun openQqSpaceFeed(
+        rootProvider: () -> AccessibilityNodeInfo?,
+        onStatus: (String) -> Unit,
+    ): Boolean {
         dismissCommonDialogs(rootProvider)
         if (isFeedVisible(rootProvider())) return true
 
-        tryOpenFeedEntry(rootProvider)
-        if (isFeedVisible(rootProvider())) return true
-
-        repeat(18) {
+        repeat(8) { attempt ->
             if (isFeedVisible(rootProvider())) return true
             dismissCommonDialogs(rootProvider)
-            if (tryOpenFeedEntry(rootProvider)) {
-                if (isFeedVisible(rootProvider())) return true
-            } else {
+
+            if (tryOpenSpaceEntry(rootProvider)) {
+                onStatus("已点击好友动态入口，等待空间页加载")
+                if (waitForFeedVisible(rootProvider)) {
+                    return true
+                }
+            }
+
+            if (tryOpenDynamicTab(rootProvider)) {
+                onStatus("已进入 QQ 动态页，继续寻找好友动态入口")
+                waitForUiTransition()
+                dismissCommonDialogs(rootProvider)
+                if (tryOpenSpaceEntry(rootProvider)) {
+                    onStatus("已点击好友动态入口，等待空间页加载")
+                    if (waitForFeedVisible(rootProvider)) {
+                        return true
+                    }
+                }
+            }
+
+            if (attempt < 7) {
                 randomDelay.shortWait()
             }
         }
         return false
     }
 
-    private suspend fun tryOpenFeedEntry(rootProvider: () -> AccessibilityNodeInfo?): Boolean {
+    private suspend fun tryOpenSpaceEntry(rootProvider: () -> AccessibilityNodeInfo?): Boolean {
         val clickedSpaceEntry = clickAnyText(rootProvider, SPACE_ENTRY_LABELS)
         if (clickedSpaceEntry) {
-            randomDelay.afterNavigation()
             dismissCommonDialogs(rootProvider)
             return true
         }
+        return false
+    }
 
+    private suspend fun tryOpenDynamicTab(rootProvider: () -> AccessibilityNodeInfo?): Boolean {
         val clickedDynamicTab = clickAnyText(rootProvider, DYNAMIC_TAB_LABELS)
         if (clickedDynamicTab) {
-            randomDelay.afterNavigation()
             dismissCommonDialogs(rootProvider)
             return true
         }
-
         return false
+    }
+
+    private suspend fun waitForFeedVisible(rootProvider: () -> AccessibilityNodeInfo?): Boolean {
+        repeat(12) {
+            dismissCommonDialogs(rootProvider)
+            if (isFeedVisible(rootProvider())) return true
+            randomDelay.shortWait()
+        }
+        return false
+    }
+
+    private suspend fun waitForUiTransition() {
+        randomDelay.pause(350, 700)
     }
 
     private suspend fun clickAnyText(
@@ -60,9 +91,15 @@ class UiNavigator(
 
     private fun isFeedVisible(root: AccessibilityNodeInfo?): Boolean {
         if (root == null) return false
-        if (NodeUtils.hasAnyText(root, listOf("好友动态", "空间动态"))) return true
+        val allTexts = NodeUtils.allTexts(root)
+        val strongMarkerHits = FEED_PAGE_MARKERS.count { marker ->
+            allTexts.any { text -> text.contains(marker, ignoreCase = true) }
+        }
+        if (strongMarkerHits >= 2) return true
         val likeNode = NodeUtils.findFirstByAnyText(root, LIKE_LABELS, exact = false)
-        return likeNode != null && root.packageName?.toString() == service.rootInActiveWindow?.packageName?.toString()
+        return strongMarkerHits >= 1 &&
+            likeNode != null &&
+            root.packageName?.toString() == service.rootInActiveWindow?.packageName?.toString()
     }
 
     private suspend fun dismissCommonDialogs(rootProvider: () -> AccessibilityNodeInfo?) {
@@ -76,6 +113,14 @@ class UiNavigator(
     companion object {
         private val DYNAMIC_TAB_LABELS = listOf("动态")
         private val SPACE_ENTRY_LABELS = listOf("好友动态", "空间动态", "QQ空间")
+        private val FEED_PAGE_MARKERS = listOf(
+            "写说说",
+            "说说",
+            "相册",
+            "留言",
+            "个性化",
+            "谁看过我",
+        )
         private val LIKE_LABELS = listOf("点赞", "赞", "已赞")
         private val COMMON_DIALOG_ACTIONS = listOf(
             "我知道了",

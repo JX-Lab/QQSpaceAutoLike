@@ -30,8 +30,12 @@ class AutomationOrchestrator(
         }
 
         randomDelay.pause(450, 900)
-        onStatus("正在进入空间动态")
-        if (!navigator.openQqSpaceFeed { service.rootInActiveWindow }) {
+        onStatus("正在进入 QQ 空间动态")
+        if (!navigator.openQqSpaceFeed(
+                rootProvider = { service.rootInActiveWindow },
+                onStatus = onStatus,
+            )
+        ) {
             return ScanSummary(0, 0, "无法定位好友动态入口")
         }
 
@@ -56,4 +60,3 @@ class AutomationOrchestrator(
         return false
     }
 }
-
