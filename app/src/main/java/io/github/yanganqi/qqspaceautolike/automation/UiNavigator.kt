@@ -17,7 +17,14 @@ class UiNavigator(
         if (isFeedVisible(rootProvider())) return true
 
         repeat(8) { attempt ->
-            if (isFeedVisible(rootProvider())) return true
+            val root = rootProvider()
+            if (isFeedVisible(root)) return true
+            if (isProfileTopVisible(root)) {
+                onStatus("已进入空间主页，继续下滑到动态区域")
+                if (scrollProfileTopIntoFeed(rootProvider)) {
+                    return true
+                }
+            }
             dismissCommonDialogs(rootProvider)
 
             if (tryOpenSpaceEntry(rootProvider)) {
@@ -66,9 +73,26 @@ class UiNavigator(
 
     private suspend fun waitForFeedVisible(rootProvider: () -> AccessibilityNodeInfo?): Boolean {
         repeat(12) {
+            val root = rootProvider()
+            if (isProfileTopVisible(root)) {
+                if (scrollProfileTopIntoFeed(rootProvider)) return true
+            }
             dismissCommonDialogs(rootProvider)
             if (isFeedVisible(rootProvider())) return true
             randomDelay.shortWait()
+        }
+        return false
+    }
+
+    private suspend fun scrollProfileTopIntoFeed(rootProvider: () -> AccessibilityNodeInfo?): Boolean {
+        repeat(3) {
+            val root = rootProvider() ?: return false
+            if (isFeedVisible(root)) return true
+            if (!isProfileTopVisible(root)) return false
+            if (!gestureHelper.scrollDown(root)) return false
+            randomDelay.afterScroll()
+            dismissCommonDialogs(rootProvider)
+            if (isFeedVisible(rootProvider())) return true
         }
         return false
     }
@@ -105,16 +129,25 @@ class UiNavigator(
         private val DYNAMIC_TAB_LABELS = listOf("动态")
         private val SPACE_ENTRY_LABELS = listOf("好友动态", "空间动态", "QQ空间")
         private val FEED_PAGE_MARKERS = listOf(
-            "写说说",
-            "说说",
-            "相册",
-            "留言",
-            "个性化",
-            "谁看过我",
+            "空间动态",
+            "今天",
+            "昨天",
+            "分钟前",
+            "小时前",
+            "天前",
         )
-        private val LIKE_LABELS = listOf("点赞", "赞", "已赞")
         private val ACTION_MARKERS = listOf("点赞", "已赞", "评论", "分享", "转发")
         private val RELATIVE_TIME_MARKERS = listOf("刚刚", "今天", "昨天", "前天", "分钟前", "小时前", "天前")
+        private val PROFILE_TOP_MARKERS = listOf(
+            "说说",
+            "日志",
+            "相册",
+            "留言",
+            "更多",
+            "分享新鲜事",
+            "总量",
+            "今日",
+        )
         private val COMMON_DIALOG_ACTIONS = listOf(
             "我知道了",
             "知道了",
@@ -128,6 +161,7 @@ class UiNavigator(
         fun isLikelySpaceFeed(root: AccessibilityNodeInfo?): Boolean {
             if (root == null) return false
             val allTexts = NodeUtils.allTexts(root)
+            if (isProfileTopVisible(root)) return false
             val strongMarkerHits = FEED_PAGE_MARKERS.count { marker ->
                 allTexts.any { text -> text.contains(marker, ignoreCase = true) }
             }
@@ -141,6 +175,19 @@ class UiNavigator(
             }
             return (strongMarkerHits >= 1 && (hasActionMarker || hasRelativeTime)) ||
                 (hasActionMarker && hasRelativeTime)
+        }
+
+        fun isProfileTopVisible(root: AccessibilityNodeInfo?): Boolean {
+            if (root == null) return false
+            val allTexts = NodeUtils.allTexts(root)
+            val markerHits = PROFILE_TOP_MARKERS.count { marker ->
+                allTexts.any { text -> text.contains(marker, ignoreCase = true) }
+            }
+            return markerHits >= 4
+        }
+
+        fun isSpaceContextVisible(root: AccessibilityNodeInfo?): Boolean {
+            return isLikelySpaceFeed(root) || isProfileTopVisible(root)
         }
     }
 }

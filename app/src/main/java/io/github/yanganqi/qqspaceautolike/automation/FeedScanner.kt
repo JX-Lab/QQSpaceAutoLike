@@ -37,8 +37,8 @@ class FeedScanner(
             }
 
             val looksLikeSpaceFeed = UiNavigator.isLikelySpaceFeed(root)
-            if (feedConfirmed && !looksLikeSpaceFeed && looksLikeManualInterruption(root)) {
-                return ScanSummary(likes, scrolls, "检测到你已切到其他 QQ 页面，当前任务已停止")
+            if (feedConfirmed && !UiNavigator.isSpaceContextVisible(root)) {
+                return ScanSummary(likes, scrolls, "已离开空间页面，当前任务已停止")
             }
             if (looksLikeSpaceFeed) {
                 feedConfirmed = true
@@ -48,6 +48,9 @@ class FeedScanner(
                 return ScanSummary(likes, scrolls, "检测到超过 ${config.maxPostAgeDays} 天的动态")
             }
 
+            if (!feedConfirmed && UiNavigator.isProfileTopVisible(root)) {
+                onStatus("当前还在空间主页顶部，继续下滑进入动态区")
+            }
             val visibleActionBar = hasVisibleActionBar(root)
             var likedThisRound = 0
             findLikeCandidates(root).forEach { node ->
@@ -96,14 +99,6 @@ class FeedScanner(
         }
     }
 
-    private fun looksLikeManualInterruption(root: AccessibilityNodeInfo): Boolean {
-        val allTexts = NodeUtils.allTexts(root)
-        val hits = INTERRUPTION_MARKERS.count { marker ->
-            allTexts.any { text -> text.contains(marker, ignoreCase = true) }
-        }
-        return hits >= 2
-    }
-
     private fun findLikeCandidates(root: AccessibilityNodeInfo): List<AccessibilityNodeInfo> {
         val width = service.resources.displayMetrics.widthPixels
         val height = service.resources.displayMetrics.heightPixels
@@ -117,7 +112,59 @@ class FeedScanner(
 
             result.putIfAbsent(NodeUtils.stableKey(target), target)
         }
+
+        findInferredLikeTargets(root, width, height).forEach { node ->
+            result.putIfAbsent(NodeUtils.stableKey(node), node)
+        }
         return result.values.toList()
+    }
+
+    private fun findInferredLikeTargets(
+        root: AccessibilityNodeInfo,
+        width: Int,
+        height: Int,
+    ): List<AccessibilityNodeInfo> {
+        val candidates = NodeUtils.flatten(root)
+            .mapNotNull(NodeUtils::findClickable)
+            .distinctBy(NodeUtils::stableKey)
+            .filter { node ->
+                if (!node.isVisibleToUser) return@filter false
+                val rect = NodeUtils.bounds(node)
+                if (rect.centerY() < height * 0.16f) return@filter false
+                if (rect.centerX() < width * 0.45f) return@filter false
+                if (rect.centerX() > width * 0.96f) return@filter false
+                if (rect.width() !in (width * 0.04f).toInt()..(width * 0.18f).toInt()) return@filter false
+                if (rect.height() !in (height * 0.025f).toInt()..(height * 0.11f).toInt()) return@filter false
+                val label = NodeUtils.semanticLabel(node)
+                if (DIRECT_NEGATIVE_KEYWORDS.any { label.contains(it, ignoreCase = true) }) return@filter false
+                true
+            }
+            .sortedBy { NodeUtils.bounds(it).centerY() }
+
+        val groups = mutableListOf<MutableList<AccessibilityNodeInfo>>()
+        val tolerance = (height * 0.028f).toInt().coerceAtLeast(36)
+        candidates.forEach { node ->
+            val centerY = NodeUtils.bounds(node).centerY()
+            val group = groups.firstOrNull { existing ->
+                kotlin.math.abs(NodeUtils.bounds(existing.first()).centerY() - centerY) <= tolerance
+            }
+            if (group == null) {
+                groups += mutableListOf(node)
+            } else {
+                group += node
+            }
+        }
+
+        return groups.mapNotNull { group ->
+            val sorted = group.sortedBy { NodeUtils.bounds(it).centerX() }
+            if (sorted.size != 3) return@mapNotNull null
+            val first = NodeUtils.bounds(sorted.first())
+            val last = NodeUtils.bounds(sorted.last())
+            val spread = last.centerX() - first.centerX()
+            if (spread < width * 0.18f || spread > width * 0.34f) return@mapNotNull null
+            if (first.centerX() < width * 0.50f || last.centerX() > width * 0.94f) return@mapNotNull null
+            sorted.first()
+        }
     }
 
     private fun looksLikeLikeAction(
@@ -129,7 +176,7 @@ class FeedScanner(
         val rect = NodeUtils.bounds(target)
         if (rect.width() <= 0 || rect.height() <= 0) return false
         if (rect.centerX() < width * 0.52f) return false
-        if (rect.top < height * 0.12f) return false
+        if (rect.top < height * 0.14f) return false
         if (rect.height() > height * 0.20f) return false
         if (rect.width() > width * 0.60f) return false
 
@@ -187,7 +234,7 @@ class FeedScanner(
         private val LIKE_KEYWORDS = listOf("点赞", "赞", "like")
         private val RESOURCE_ID_KEYWORDS = listOf("like", "zan", "praise", "thumb")
         private val ACTION_ROW_KEYWORDS = listOf("评论", "转发", "分享")
-        private val INTERRUPTION_MARKERS = listOf("消息", "联系人", "群聊", "发送", "搜索")
+        private val DIRECT_NEGATIVE_KEYWORDS = listOf("返回", "设置", "编辑", "黄钻", "续费", "相册", "留言", "更多")
         private val NEGATIVE_KEYWORDS = listOf("取消赞", "收回赞", "赞了", "赞过", "赞同")
     }
 }
