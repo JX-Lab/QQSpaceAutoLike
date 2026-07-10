@@ -60,11 +60,13 @@ object NodeUtils {
     fun collectContextText(node: AccessibilityNodeInfo, ancestorLevels: Int = 4): String {
         val builder = StringBuilder()
         var current: AccessibilityNodeInfo? = node
-        repeat(ancestorLevels) {
-            val currentNode = current ?: return@repeat
+        var level = 0
+        while (level < ancestorLevels) {
+            val currentNode = current ?: break
             builder.append(' ')
             builder.append(collectSubtreeText(currentNode, maxDepth = 2, maxNodes = 24))
             current = currentNode.parent
+            level += 1
         }
         return builder.toString()
     }
@@ -92,10 +94,12 @@ object NodeUtils {
 
     fun findClickable(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
         var current = node
-        repeat(6) {
+        var depth = 0
+        while (depth < 6) {
             val currentNode = current ?: return null
             if (currentNode.isClickable && currentNode.isVisibleToUser) return currentNode
             current = currentNode.parent
+            depth += 1
         }
         return null
     }
