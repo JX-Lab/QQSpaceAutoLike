@@ -28,14 +28,14 @@ class StopOverlayController(
         val view = TextView(context).apply {
             text = context.getString(R.string.overlay_action_stop)
             contentDescription = text
-            setTextColor(ContextCompat.getColor(context, R.color.text_primary))
+            setTextColor(ContextCompat.getColor(context, R.color.white))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
             setPadding(paddingHorizontal, paddingVertical, paddingHorizontal, paddingVertical)
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = 18f * density
-                setColor(ContextCompat.getColor(context, R.color.card))
-                setStroke((1 * density).toInt().coerceAtLeast(1), ContextCompat.getColor(context, R.color.card_stroke))
+                setColor(ContextCompat.getColor(context, R.color.accent))
+                setStroke((1 * density).toInt().coerceAtLeast(1), ContextCompat.getColor(context, R.color.accent))
             }
             elevation = 10f * density
             isClickable = true

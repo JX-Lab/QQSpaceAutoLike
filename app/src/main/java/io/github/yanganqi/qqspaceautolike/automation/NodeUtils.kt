@@ -57,6 +57,26 @@ object NodeUtils {
         return parts.joinToString(" ").trim()
     }
 
+    fun resourceIdName(node: AccessibilityNodeInfo): String {
+        return node.viewIdResourceName
+            ?.substringAfterLast('/')
+            ?.trim()
+            .orEmpty()
+    }
+
+    fun className(node: AccessibilityNodeInfo): String {
+        return node.className?.toString()?.trim().orEmpty()
+    }
+
+    fun semanticLabel(node: AccessibilityNodeInfo): String {
+        val parts = buildList {
+            combinedLabel(node).takeIf { it.isNotBlank() }?.let(::add)
+            resourceIdName(node).takeIf { it.isNotBlank() }?.let(::add)
+            className(node).takeIf { it.isNotBlank() }?.let(::add)
+        }
+        return parts.joinToString(" ").trim()
+    }
+
     fun collectContextText(node: AccessibilityNodeInfo, ancestorLevels: Int = 4): String {
         val builder = StringBuilder()
         var current: AccessibilityNodeInfo? = node

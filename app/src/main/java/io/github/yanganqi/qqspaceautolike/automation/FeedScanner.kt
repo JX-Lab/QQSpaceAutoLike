@@ -76,23 +76,70 @@ class FeedScanner(
     private fun findLikeCandidates(root: AccessibilityNodeInfo): List<AccessibilityNodeInfo> {
         val width = service.resources.displayMetrics.widthPixels
         val height = service.resources.displayMetrics.heightPixels
+        val result = linkedMapOf<String, AccessibilityNodeInfo>()
 
-        return NodeUtils.flatten(root).filter { node ->
-            if (!node.isVisibleToUser) return@filter false
+        NodeUtils.flatten(root).forEach { node ->
+            if (!node.isVisibleToUser) return@forEach
+            val target = NodeUtils.findClickable(node) ?: return@forEach
 
-            val label = NodeUtils.combinedLabel(node)
-            if (label.isBlank()) return@filter false
-            if (!LIKE_KEYWORDS.any { label.contains(it, ignoreCase = true) }) return@filter false
-            if (NEGATIVE_KEYWORDS.any { label.contains(it, ignoreCase = true) }) return@filter false
-            if (NodeUtils.findClickable(node) == null) return@filter false
+            if (!looksLikeLikeAction(node, target, width, height)) return@forEach
 
-            val rect = NodeUtils.bounds(node)
-            if (rect.width() <= 0 || rect.height() <= 0) return@filter false
-            if (rect.centerX() < width * 0.42f) return@filter false
-            if (rect.height() > height * 0.22f) return@filter false
-            if (rect.width() > width * 0.55f) return@filter false
-            true
+            result.putIfAbsent(NodeUtils.stableKey(target), target)
         }
+        return result.values.toList()
+    }
+
+    private fun looksLikeLikeAction(
+        node: AccessibilityNodeInfo,
+        target: AccessibilityNodeInfo,
+        width: Int,
+        height: Int,
+    ): Boolean {
+        val rect = NodeUtils.bounds(target)
+        if (rect.width() <= 0 || rect.height() <= 0) return false
+        if (rect.centerX() < width * 0.52f) return false
+        if (rect.top < height * 0.12f) return false
+        if (rect.height() > height * 0.20f) return false
+        if (rect.width() > width * 0.60f) return false
+
+        val semanticText = buildString {
+            append(NodeUtils.semanticLabel(node))
+            append(' ')
+            append(NodeUtils.semanticLabel(target))
+        }.trim()
+        val contextText = NodeUtils.collectContextText(target)
+        val combinedContext = "$semanticText $contextText"
+
+        if (NEGATIVE_KEYWORDS.any { combinedContext.contains(it, ignoreCase = true) }) return false
+
+        val hasDirectLikeSignal = LIKE_KEYWORDS.any { semanticText.contains(it, ignoreCase = true) }
+        val hasContextLikeSignal = LIKE_KEYWORDS.any { contextText.contains(it, ignoreCase = true) }
+        val hasResourceIdLikeSignal = RESOURCE_ID_KEYWORDS.any { keyword ->
+            semanticText.contains(keyword, ignoreCase = true)
+        }
+        val hasActionRowSignal = ACTION_ROW_KEYWORDS.any { contextText.contains(it, ignoreCase = true) }
+        val looksLikeIcon =
+            NodeUtils.className(node).contains("Image", ignoreCase = true) ||
+                NodeUtils.className(target).contains("Image", ignoreCase = true) ||
+                rect.width() < width * 0.22f
+
+        var score = 0
+        if (hasDirectLikeSignal) score += 4
+        if (hasContextLikeSignal) score += 2
+        if (hasResourceIdLikeSignal) score += 3
+        if (hasActionRowSignal) score += 1
+        if (looksLikeIcon) score += 1
+        if (rect.centerX() > width * 0.72f) score += 1
+
+        if (hasDirectLikeSignal || hasContextLikeSignal || hasResourceIdLikeSignal) {
+            return score >= 3
+        }
+
+        // Fallback for pure icon buttons on the action bar: QQ may expose only an image node.
+        return hasActionRowSignal &&
+            looksLikeIcon &&
+            rect.centerX() > width * 0.76f &&
+            rect.width() < width * 0.20f
     }
 
     private fun isAlreadyLiked(node: AccessibilityNodeInfo): Boolean {
@@ -107,7 +154,8 @@ class FeedScanner(
     companion object {
         private const val MAX_IDLE_ROUNDS = 4
         private val LIKE_KEYWORDS = listOf("点赞", "赞", "like")
+        private val RESOURCE_ID_KEYWORDS = listOf("like", "zan", "praise", "thumb")
+        private val ACTION_ROW_KEYWORDS = listOf("评论", "转发", "分享")
         private val NEGATIVE_KEYWORDS = listOf("取消赞", "收回赞", "赞了", "赞过", "赞同")
     }
 }
-
