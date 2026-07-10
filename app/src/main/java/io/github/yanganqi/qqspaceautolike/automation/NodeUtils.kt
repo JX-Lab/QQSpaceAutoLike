@@ -61,10 +61,10 @@ object NodeUtils {
         val builder = StringBuilder()
         var current: AccessibilityNodeInfo? = node
         repeat(ancestorLevels) {
-            current ?: return@repeat
+            val currentNode = current ?: return@repeat
             builder.append(' ')
-            builder.append(collectSubtreeText(current, maxDepth = 2, maxNodes = 24))
-            current = current.parent
+            builder.append(collectSubtreeText(currentNode, maxDepth = 2, maxNodes = 24))
+            current = currentNode.parent
         }
         return builder.toString()
     }
@@ -93,9 +93,9 @@ object NodeUtils {
     fun findClickable(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
         var current = node
         repeat(6) {
-            if (current == null) return null
-            if (current.isClickable && current.isVisibleToUser) return current
-            current = current.parent
+            val currentNode = current ?: return null
+            if (currentNode.isClickable && currentNode.isVisibleToUser) return currentNode
+            current = currentNode.parent
         }
         return null
     }
@@ -120,4 +120,3 @@ object NodeUtils {
         return "${rect.left}:${rect.top}:${rect.right}:${rect.bottom}|$context"
     }
 }
-
