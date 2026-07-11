@@ -1,5 +1,6 @@
 package io.github.yanganqi.qqspaceautolike.automation
 
+import android.graphics.Point
 import android.graphics.Rect
 import android.view.accessibility.AccessibilityNodeInfo
 import kotlin.math.abs
@@ -59,11 +60,14 @@ class CardClassifier(
 
     private fun buildFeedCard(cardRoot: AccessibilityNodeInfo): FeedCard {
         val bounds = NodeUtils.bounds(cardRoot)
+        val topMenu = findTopMenuNode(cardRoot, bounds)
+        val commentBox = findCommentBoxNode(cardRoot, bounds)
         val actionAnchors = findActionAnchors(cardRoot, bounds)
-        val likeNode = findLikeNode(cardRoot, bounds, actionAnchors)
+        val likeNode = findLikeNode(cardRoot, bounds, actionAnchors, commentBox, topMenu)
+        val likeTapPoint = findLikeTapPoint(likeNode, commentBox, actionAnchors, bounds)
         val ageDays = inferCardAgeDays(cardRoot, bounds)
         val isAdvertisement = isAdvertisementCard(cardRoot, bounds)
-        val hasActionRow = hasActionRow(actionAnchors)
+        val hasActionRow = commentBox != null || actionAnchors.isNotEmpty()
         val isAlreadyLiked = isAlreadyLiked(cardRoot, likeNode, bounds)
 
         return FeedCard(
@@ -71,6 +75,7 @@ class CardClassifier(
             key = stableCardKey(cardRoot),
             bounds = bounds,
             likeNode = likeNode,
+            likeTapPoint = likeTapPoint,
             ageDays = ageDays,
             isAdvertisement = isAdvertisement,
             isAlreadyLiked = isAlreadyLiked,
@@ -89,12 +94,101 @@ class CardClassifier(
         if (rect.isEmpty) return false
         if (rect.width() < screenWidth * 0.72f) return false
         if (rect.height() < screenHeight * 0.14f) return false
-        if (rect.height() > screenHeight * 0.78f) return false
-        if (rect.centerY() < screenHeight * 0.12f) return false
-        if (rect.top > screenHeight * 0.92f) return false
+        if (rect.height() > screenHeight * 0.88f) return false
+        if (rect.centerY() < screenHeight * 0.10f) return false
+        if (rect.top > screenHeight * 0.94f) return false
 
+        val topMenu = findTopMenuNode(node, rect)
+        val commentBox = findCommentBoxNode(node, rect)
         val actionAnchors = findActionAnchors(node, rect)
-        return hasActionRow(actionAnchors)
+
+        val hasTopMenu = topMenu != null
+        val hasBottomStructure = commentBox != null || actionAnchors.isNotEmpty()
+        return hasTopMenu && hasBottomStructure
+    }
+
+    private fun findTopMenuNode(
+        cardRoot: AccessibilityNodeInfo,
+        cardBounds: Rect,
+    ): AccessibilityNodeInfo? {
+        val topLimit = cardBounds.top + (cardBounds.height() * 0.30f).toInt()
+        val explicit = NodeUtils.flatten(cardRoot)
+            .mapNotNull { node ->
+                if (!node.isVisibleToUser) return@mapNotNull null
+                val label = NodeUtils.combinedLabel(node)
+                if (!matchesAny(label, TOP_MENU_MARKERS)) return@mapNotNull null
+
+                val clickable = NodeUtils.findClickable(node) ?: node
+                val rect = NodeUtils.bounds(clickable)
+                if (rect.isEmpty || rect.top > topLimit) return@mapNotNull null
+                if (rect.centerX() < cardBounds.left + (cardBounds.width() * 0.70f).toInt()) return@mapNotNull null
+                clickable
+            }
+            .distinctBy(::nodeIdentity)
+            .minByOrNull { node -> area(NodeUtils.bounds(node)) }
+        if (explicit != null) return explicit
+
+        return NodeUtils.flatten(cardRoot)
+            .mapNotNull(NodeUtils::findClickable)
+            .distinctBy(::nodeIdentity)
+            .filter { clickable ->
+                val rect = NodeUtils.bounds(clickable)
+                if (rect.isEmpty) return@filter false
+                if (rect.top > topLimit) return@filter false
+                if (rect.centerX() < cardBounds.left + (cardBounds.width() * 0.76f).toInt()) return@filter false
+                if (rect.width() > cardBounds.width() * 0.18f) return@filter false
+                if (rect.height() > cardBounds.height() * 0.14f) return@filter false
+                true
+            }
+            .minByOrNull { clickable -> area(NodeUtils.bounds(clickable)) }
+    }
+
+    private fun findCommentBoxNode(
+        cardRoot: AccessibilityNodeInfo,
+        cardBounds: Rect,
+    ): AccessibilityNodeInfo? {
+        val minCommentY = cardBounds.top + (cardBounds.height() * 0.62f).toInt()
+        val explicit = NodeUtils.flatten(cardRoot)
+            .mapNotNull { node ->
+                if (!node.isVisibleToUser) return@mapNotNull null
+                val label = NodeUtils.combinedLabel(node)
+                val resourceId = NodeUtils.resourceIdName(node)
+                val className = NodeUtils.className(node)
+
+                val looksLikeComment = matchesAny(label, COMMENT_INPUT_MARKERS) ||
+                    resourceId.contains("comment", ignoreCase = true) ||
+                    resourceId.contains("input", ignoreCase = true) ||
+                    className.contains("EditText", ignoreCase = true)
+                if (!looksLikeComment) return@mapNotNull null
+
+                val clickable = NodeUtils.findClickable(node) ?: node
+                val rect = NodeUtils.bounds(clickable)
+                if (rect.isEmpty || rect.centerY() < minCommentY) return@mapNotNull null
+                if (rect.width() < cardBounds.width() * 0.22f) return@mapNotNull null
+                if (rect.width() > cardBounds.width() * 0.82f) return@mapNotNull null
+                if (rect.centerX() < cardBounds.left + (cardBounds.width() * 0.25f).toInt()) return@mapNotNull null
+                clickable
+            }
+            .distinctBy(::nodeIdentity)
+            .maxByOrNull { node -> area(NodeUtils.bounds(node)) }
+        if (explicit != null) return explicit
+
+        return NodeUtils.flatten(cardRoot)
+            .mapNotNull(NodeUtils::findClickable)
+            .distinctBy(::nodeIdentity)
+            .filter { clickable ->
+                val rect = NodeUtils.bounds(clickable)
+                if (rect.isEmpty) return@filter false
+                if (rect.centerY() < minCommentY) return@filter false
+                if (rect.width() < cardBounds.width() * 0.28f) return@filter false
+                if (rect.width() > cardBounds.width() * 0.80f) return@filter false
+                if (rect.height() > cardBounds.height() * 0.18f) return@filter false
+                if (rect.centerX() < cardBounds.left + (cardBounds.width() * 0.28f).toInt()) return@filter false
+                val label = NodeUtils.collectSubtreeText(clickable, maxDepth = 2, maxNodes = 24)
+                if (matchesAny(label, TOP_MENU_MARKERS)) return@filter false
+                true
+            }
+            .maxByOrNull { clickable -> area(NodeUtils.bounds(clickable)) }
     }
 
     private fun findActionAnchors(
@@ -117,25 +211,16 @@ class CardClassifier(
             .sortedBy { node -> NodeUtils.bounds(node).centerX() }
     }
 
-    private fun hasActionRow(actionAnchors: List<AccessibilityNodeInfo>): Boolean {
-        if (actionAnchors.isEmpty()) return false
-        val labels = actionAnchors.map(NodeUtils::combinedLabel)
-        val commentShareHits = COMMENT_SHARE_MARKERS.count { marker ->
-            labels.any { label -> label.contains(marker, ignoreCase = true) }
-        }
-        val actionHits = ACTION_MARKERS.count { marker ->
-            labels.any { label -> label.contains(marker, ignoreCase = true) }
-        }
-        return commentShareHits >= 2 || actionHits >= 2
-    }
-
     private fun findLikeNode(
         cardRoot: AccessibilityNodeInfo,
         cardBounds: Rect,
         actionAnchors: List<AccessibilityNodeInfo>,
+        commentBox: AccessibilityNodeInfo?,
+        topMenu: AccessibilityNodeInfo?,
     ): AccessibilityNodeInfo? {
         findExplicitLikeNode(cardRoot, cardBounds)?.let { return it }
-        return findInferredLikeNode(cardRoot, cardBounds, actionAnchors)
+        findActionRowLikeNode(cardRoot, cardBounds, actionAnchors)?.let { return it }
+        return findBottomRowLikeNode(cardRoot, cardBounds, commentBox, topMenu)
     }
 
     private fun findExplicitLikeNode(
@@ -167,25 +252,23 @@ class CardClassifier(
             .firstOrNull()
     }
 
-    private fun findInferredLikeNode(
+    private fun findActionRowLikeNode(
         cardRoot: AccessibilityNodeInfo,
         cardBounds: Rect,
         actionAnchors: List<AccessibilityNodeInfo>,
     ): AccessibilityNodeInfo? {
         if (actionAnchors.size < 2) return null
 
-        val commentShareClickables = actionAnchors
+        val anchorClickables = actionAnchors
             .mapNotNull(NodeUtils::findClickable)
             .distinctBy(::nodeIdentity)
+        if (anchorClickables.isEmpty()) return null
 
-        if (commentShareClickables.isEmpty()) return null
-
-        val rowCenterY = commentShareClickables
+        val rowCenterY = anchorClickables
             .map { clickable -> NodeUtils.bounds(clickable).centerY() }
             .average()
             .toInt()
-        val leftmostLabeledX = commentShareClickables
-            .minOf { clickable -> NodeUtils.bounds(clickable).centerX() }
+        val leftmostLabeledX = anchorClickables.minOf { clickable -> NodeUtils.bounds(clickable).centerX() }
 
         return NodeUtils.flatten(cardRoot)
             .mapNotNull(NodeUtils::findClickable)
@@ -206,6 +289,69 @@ class CardClassifier(
             }
             .sortedByDescending { clickable -> NodeUtils.bounds(clickable).centerX() }
             .firstOrNull()
+    }
+
+    private fun findBottomRowLikeNode(
+        cardRoot: AccessibilityNodeInfo,
+        cardBounds: Rect,
+        commentBox: AccessibilityNodeInfo?,
+        topMenu: AccessibilityNodeInfo?,
+    ): AccessibilityNodeInfo? {
+        val commentBounds = commentBox?.let(NodeUtils::bounds) ?: return null
+        val menuIdentity = topMenu?.let(::nodeIdentity)
+
+        return NodeUtils.flatten(cardRoot)
+            .mapNotNull(NodeUtils::findClickable)
+            .distinctBy(::nodeIdentity)
+            .filter { clickable ->
+                val rect = NodeUtils.bounds(clickable)
+                if (rect.isEmpty) return@filter false
+                if (nodeIdentity(clickable) == menuIdentity) return@filter false
+                if (rect.centerY() < commentBounds.top - commentBounds.height()) return@filter false
+                if (rect.centerY() > commentBounds.bottom + commentBounds.height() / 2) return@filter false
+                if (rect.centerX() <= commentBounds.right) return@filter false
+                if (rect.width() > cardBounds.width() * 0.20f) return@filter false
+                if (rect.height() > cardBounds.height() * 0.18f) return@filter false
+
+                val label = NodeUtils.collectSubtreeText(clickable, maxDepth = 2, maxNodes = 24)
+                if (matchesAny(label, COMMENT_INPUT_MARKERS)) return@filter false
+                if (matchesAny(label, TOP_MENU_MARKERS)) return@filter false
+                true
+            }
+            .sortedByDescending { clickable -> NodeUtils.bounds(clickable).centerX() }
+            .firstOrNull()
+    }
+
+    private fun findLikeTapPoint(
+        likeNode: AccessibilityNodeInfo?,
+        commentBox: AccessibilityNodeInfo?,
+        actionAnchors: List<AccessibilityNodeInfo>,
+        cardBounds: Rect,
+    ): Point? {
+        likeNode?.let { node ->
+            val rect = NodeUtils.bounds(node)
+            if (!rect.isEmpty) return Point(rect.centerX(), rect.centerY())
+        }
+
+        commentBox?.let { node ->
+            val rect = NodeUtils.bounds(node)
+            if (!rect.isEmpty) {
+                val tapX = (cardBounds.right - cardBounds.width() * 0.11f).toInt()
+                val tapY = rect.centerY()
+                return Point(tapX, tapY)
+            }
+        }
+
+        if (actionAnchors.isNotEmpty()) {
+            val rowCenterY = actionAnchors
+                .map { anchor -> NodeUtils.bounds(anchor).centerY() }
+                .average()
+                .toInt()
+            val tapX = (cardBounds.right - cardBounds.width() * 0.11f).toInt()
+            return Point(tapX, rowCenterY)
+        }
+
+        return null
     }
 
     private fun inferCardAgeDays(
@@ -246,7 +392,7 @@ class CardClassifier(
         }
         if (topBadgeDetected) return true
 
-        val cardText = NodeUtils.collectSubtreeText(cardRoot, maxDepth = 6, maxNodes = 160)
+        val cardText = NodeUtils.collectSubtreeText(cardRoot, maxDepth = 6, maxNodes = 180)
         val blockedHits = blockedKeywords.count { keyword ->
             cardText.contains(keyword, ignoreCase = true)
         }
@@ -276,9 +422,9 @@ class CardClassifier(
     }
 
     private fun stableCardKey(cardRoot: AccessibilityNodeInfo): String {
-        val signature = NodeUtils.collectSubtreeText(cardRoot, maxDepth = 5, maxNodes = 80)
+        val signature = NodeUtils.collectSubtreeText(cardRoot, maxDepth = 5, maxNodes = 100)
             .replace(WHITESPACE_REGEX, "")
-            .take(160)
+            .take(180)
 
         if (signature.isNotBlank()) return signature
 
@@ -332,8 +478,9 @@ class CardClassifier(
     companion object {
         private val WHITESPACE_REGEX = Regex("""\s+""")
         private val LIKE_KEYWORDS = listOf("点赞", "赞", "like")
-        private val COMMENT_SHARE_MARKERS = listOf("评论", "转发", "分享")
-        private val ACTION_MARKERS = listOf("点赞", "已赞", "评论", "分享", "转发")
+        private val ACTION_MARKERS = listOf("点赞", "已赞", "评论", "转发", "分享")
+        private val COMMENT_INPUT_MARKERS = listOf("评论", "说点什么", "写评论", "输入", "回复")
+        private val TOP_MENU_MARKERS = listOf("更多", "菜单", "更多操作", "更多选项")
         private val ALREADY_LIKED_KEYWORDS = listOf("已赞")
         private val NEGATIVE_KEYWORDS = listOf("取消赞", "收回赞", "赞了", "赞过", "赞同")
         private val AD_BADGE_KEYWORDS = listOf("广告", "推广", "赞助")

@@ -28,11 +28,20 @@ class GestureHelper(
         return performTap(rect.centerX(), rect.centerY())
     }
 
+    suspend fun tap(
+        x: Int,
+        y: Int,
+    ): Boolean {
+        return performTap(x, y)
+    }
+
     suspend fun scrollDown(
         root: AccessibilityNodeInfo?,
         distance: ScrollDistance = ScrollDistance.PAGE,
     ): Boolean {
-        if (NodeUtils.findScrollable(root)?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) == true) {
+        if (distance == ScrollDistance.PAGE &&
+            NodeUtils.findScrollable(root)?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) == true
+        ) {
             return true
         }
 
@@ -40,7 +49,7 @@ class GestureHelper(
         val startX = metrics.widthPixels / 2 + randomDelay.jitter(36)
         val endX = startX + randomDelay.jitter(18)
         val (startRatio, endRatio, startJitter, endJitter) = when (distance) {
-            ScrollDistance.CARD -> ScrollProfile(0.70f, 0.57f, 22, 14)
+            ScrollDistance.CARD -> ScrollProfile(0.71f, 0.63f, 18, 12)
             ScrollDistance.PAGE -> ScrollProfile(0.72f, 0.50f, 28, 20)
         }
         val startY = (metrics.heightPixels * startRatio).toInt() + randomDelay.jitter(startJitter)

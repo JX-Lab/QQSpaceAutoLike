@@ -69,10 +69,14 @@ class FeedScanner(
                     continue
                 }
 
-                val likeNode = card.likeNode ?: continue
                 if (!card.hasActionRow) continue
+                val tapped = card.likeNode?.let { likeNode ->
+                    gestureHelper.tap(likeNode, preferGesture = true)
+                } ?: card.likeTapPoint?.let { point ->
+                    gestureHelper.tap(point.x, point.y)
+                } ?: false
 
-                if (gestureHelper.tap(likeNode, preferGesture = true)) {
+                if (tapped) {
                     likes += 1
                     likedThisRound = true
                     seenCards += card.key
