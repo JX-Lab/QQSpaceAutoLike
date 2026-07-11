@@ -43,29 +43,36 @@ class FeedScanner(
                 feedConfirmed = true
             }
 
-            if (config.stopOnOlderPosts && classifier.reachedOlderContent(root, config.maxPostAgeDays)) {
-                return ScanSummary(likes, scrolls, "检测到超过 ${config.maxPostAgeDays} 天的动态")
-            }
-
             if (!feedConfirmed && UiNavigator.isProfileTopVisible(root)) {
                 onStatus("当前还在空间主页顶部，继续下滑进入动态区")
             }
             val visibleActionBar = hasVisibleActionBar(root)
             var likedThisRound = 0
-            findLikeCandidates(root).forEach { node ->
-                if (stopRequested()) return@forEach
-
+            for (node in findLikeCandidates(root)) {
+                if (stopRequested()) break
                 val key = NodeUtils.stableKey(node)
-                if (!seenNodes.add(key)) return@forEach
-                if (classifier.shouldSkip(node, config.skipAds)) return@forEach
-                if (isAlreadyLiked(node)) return@forEach
+                if (!seenNodes.add(key)) continue
+                if (classifier.shouldSkip(node, config.skipAds)) continue
+                if (isAlreadyLiked(node)) continue
+                if (config.stopOnOlderPosts && classifier.isOlderThan(node, config.maxPostAgeDays)) {
+                    continue
+                }
 
-                if (gestureHelper.tap(node)) {
+                if (gestureHelper.tap(node, preferGesture = true)) {
                     likes += 1
                     likedThisRound += 1
                     onStatus("已点赞 $likes 条动态")
                     randomDelay.betweenLikes()
+                    break
                 }
+            }
+
+            if (likedThisRound > 0) {
+                continue
+            }
+
+            if (config.stopOnOlderPosts && classifier.reachedOlderContent(root, config.maxPostAgeDays)) {
+                return ScanSummary(likes, scrolls, "检测到超过 ${config.maxPostAgeDays} 天的动态")
             }
 
             if (likedThisRound == 0 && !visibleActionBar) {
@@ -96,22 +103,27 @@ class FeedScanner(
     private fun findLikeCandidates(root: AccessibilityNodeInfo): List<AccessibilityNodeInfo> {
         val width = service.resources.displayMetrics.widthPixels
         val height = service.resources.displayMetrics.heightPixels
-        return NodeUtils.flatten(root).filter { node ->
-            if (!node.isVisibleToUser) return@filter false
+        return NodeUtils.flatten(root)
+            .filter { node ->
+                if (!node.isVisibleToUser) return@filter false
 
-            val label = NodeUtils.combinedLabel(node)
-            if (label.isBlank()) return@filter false
-            if (!LIKE_KEYWORDS.any { label.contains(it, ignoreCase = true) }) return@filter false
-            if (NEGATIVE_KEYWORDS.any { label.contains(it, ignoreCase = true) }) return@filter false
-            if (NodeUtils.findClickable(node) == null) return@filter false
+                val label = NodeUtils.combinedLabel(node)
+                if (label.isBlank()) return@filter false
+                if (!LIKE_KEYWORDS.any { label.contains(it, ignoreCase = true) }) return@filter false
+                if (NEGATIVE_KEYWORDS.any { label.contains(it, ignoreCase = true) }) return@filter false
+                if (NodeUtils.findClickable(node) == null) return@filter false
+                if (!classifier.belongsToFeedCard(node)) return@filter false
 
-            val rect = NodeUtils.bounds(node)
-            if (rect.width() <= 0 || rect.height() <= 0) return@filter false
-            if (rect.centerX() < width * 0.42f) return@filter false
-            if (rect.height() > height * 0.22f) return@filter false
-            if (rect.width() > width * 0.55f) return@filter false
-            true
-        }
+                val rect = NodeUtils.bounds(node)
+                if (rect.width() <= 0 || rect.height() <= 0) return@filter false
+                if (rect.centerX() < width * 0.42f) return@filter false
+                if (rect.centerY() < height * 0.16f) return@filter false
+                if (rect.centerY() > height * 0.88f) return@filter false
+                if (rect.height() > height * 0.22f) return@filter false
+                if (rect.width() > width * 0.55f) return@filter false
+                true
+            }
+            .sortedBy { node -> NodeUtils.bounds(node).centerY() }
     }
 
     private fun isAlreadyLiked(node: AccessibilityNodeInfo): Boolean {

@@ -12,10 +12,14 @@ class GestureHelper(
     private val randomDelay: RandomDelay,
 ) {
 
-    suspend fun tap(node: AccessibilityNodeInfo): Boolean {
-        if (NodeUtils.click(node)) return true
+    suspend fun tap(
+        node: AccessibilityNodeInfo,
+        preferGesture: Boolean = false,
+    ): Boolean {
         val rect = NodeUtils.bounds(node)
         if (rect.isEmpty) return false
+        if (preferGesture && performTap(rect.centerX(), rect.centerY())) return true
+        if (NodeUtils.click(node)) return true
         return performTap(rect.centerX(), rect.centerY())
     }
 
@@ -27,8 +31,8 @@ class GestureHelper(
         val metrics = service.resources.displayMetrics
         val startX = metrics.widthPixels / 2 + randomDelay.jitter(36)
         val endX = startX + randomDelay.jitter(18)
-        val startY = (metrics.heightPixels * 0.72f).toInt() + randomDelay.jitter(42)
-        val endY = (metrics.heightPixels * 0.44f).toInt() + randomDelay.jitter(30)
+        val startY = (metrics.heightPixels * 0.68f).toInt() + randomDelay.jitter(28)
+        val endY = (metrics.heightPixels * 0.50f).toInt() + randomDelay.jitter(20)
         return performSwipe(startX, startY, endX, endY, randomDelay.scrollDurationMs())
     }
 

@@ -124,6 +124,32 @@ object NodeUtils {
         return null
     }
 
+    fun ancestors(
+        node: AccessibilityNodeInfo?,
+        maxDepth: Int,
+    ): List<AccessibilityNodeInfo> {
+        val result = mutableListOf<AccessibilityNodeInfo>()
+        var current = node
+        var depth = 0
+        while (current != null && depth < maxDepth) {
+            result += current
+            current = current.parent
+            depth += 1
+        }
+        return result
+    }
+
+    fun root(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        var current = node ?: return null
+        var depth = 0
+        while (depth < 32) {
+            val parent = current.parent ?: return current
+            current = parent
+            depth += 1
+        }
+        return current
+    }
+
     fun click(node: AccessibilityNodeInfo?): Boolean {
         return findClickable(node)?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
     }

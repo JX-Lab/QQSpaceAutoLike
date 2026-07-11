@@ -116,9 +116,6 @@ class QqAutoLikeService : AccessibilityService() {
         if (!requireSpaceReentryAfterStop) return
 
         if (packageName != QQ_PACKAGE_NAME) {
-            if (packageName != this.packageName) {
-                spaceExitObservedAfterStop = true
-            }
             return
         }
 
@@ -171,6 +168,7 @@ class QqAutoLikeService : AccessibilityService() {
                 finishStatus("执行失败：${error.message ?: "未知错误"}")
                 delay(1_200)
             } finally {
+                lockAutoRunUntilSpaceReentry()
                 stopOverlayController.hide()
                 notificationFactory.cancel()
                 stopRequested = false
@@ -194,12 +192,16 @@ class QqAutoLikeService : AccessibilityService() {
         runtimeStatusStore.setFinished(text)
     }
 
+    private fun lockAutoRunUntilSpaceReentry() {
+        requireSpaceReentryAfterStop = true
+        spaceExitObservedAfterStop = false
+        qqSessionConsumed = true
+    }
+
     private fun requestStop(reason: String): Boolean {
         val job = automationJob ?: return false
         if (reason == "external request" || reason == "overlay stop button") {
-            requireSpaceReentryAfterStop = true
-            spaceExitObservedAfterStop = false
-            qqSessionConsumed = true
+            lockAutoRunUntilSpaceReentry()
         }
         stopRequested = true
         job.cancel(CancellationException(reason))

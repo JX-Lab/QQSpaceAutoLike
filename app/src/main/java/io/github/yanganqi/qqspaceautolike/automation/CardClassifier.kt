@@ -1,96 +1,117 @@
 package io.github.yanganqi.qqspaceautolike.automation
 
 import android.view.accessibility.AccessibilityNodeInfo
-import java.time.DateTimeException
-import java.time.LocalDate
-import java.time.temporal.ChronoUnit
 
 class CardClassifier(
     private val blockedKeywords: Set<String> = DEFAULT_BLOCKED_KEYWORDS,
+    private val postTimeParser: PostTimeParser = PostTimeParser(),
 ) {
 
     fun shouldSkip(node: AccessibilityNodeInfo, skipAds: Boolean): Boolean {
         if (!skipAds) return false
-        val context = NodeUtils.collectContextText(node)
+        val context = collectCardContext(node)
         return blockedKeywords.any { keyword ->
             context.contains(keyword, ignoreCase = true)
         }
     }
 
+    fun belongsToFeedCard(node: AccessibilityNodeInfo): Boolean {
+        return findLikelyCardRoot(node) != null
+    }
+
+    fun isOlderThan(node: AccessibilityNodeInfo, maxAgeDays: Int): Boolean {
+        if (maxAgeDays < 0) return false
+        val age = inferCardAgeDays(node) ?: return false
+        return age > maxAgeDays.toLong()
+    }
+
     fun reachedOlderContent(root: AccessibilityNodeInfo?, maxAgeDays: Int): Boolean {
         if (root == null || maxAgeDays < 0) return false
-        return NodeUtils.allTexts(root).any { text ->
-            val age = inferAgeDays(text) ?: return@any false
-            age > maxAgeDays
+        return visibleCardAgeDays(root).any { age -> age > maxAgeDays.toLong() }
+    }
+
+    private fun collectCardContext(node: AccessibilityNodeInfo): String {
+        val localContext = NodeUtils.collectContextText(node, ancestorLevels = 6)
+        val cardContext = findLikelyCardRoot(node)?.let { cardRoot ->
+            NodeUtils.collectSubtreeText(cardRoot, maxDepth = 5, maxNodes = 120)
+        }.orEmpty()
+        return "$localContext $cardContext".trim()
+    }
+
+    private fun visibleCardAgeDays(root: AccessibilityNodeInfo): List<Long> {
+        val seenCards = linkedSetOf<String>()
+        return NodeUtils.flatten(root).mapNotNull { node ->
+            if (!node.isVisibleToUser) return@mapNotNull null
+            val label = NodeUtils.combinedLabel(node)
+            if (label.isBlank()) return@mapNotNull null
+            if (!looksRelevantToFeed(label)) return@mapNotNull null
+
+            val cardRoot = findLikelyCardRoot(node) ?: return@mapNotNull null
+            val cardKey = stableCardKey(cardRoot)
+            if (!seenCards.add(cardKey)) return@mapNotNull null
+
+            inferCardRootAgeDays(cardRoot)
         }
     }
 
-    private fun inferAgeDays(text: String): Long? {
-        val normalized = text.replace(" ", "")
-        when {
-            normalized.contains("刚刚") -> return 0
-            normalized.contains("今天") -> return 0
-            normalized.contains("分钟前") -> return 0
-            normalized.contains("小时前") -> return 0
-            normalized.contains("昨天") -> return 1
-            normalized.contains("前天") -> return 2
-        }
+    private fun inferCardAgeDays(node: AccessibilityNodeInfo): Long? {
+        return findLikelyCardRoot(node)?.let(::inferCardRootAgeDays)
+    }
 
-        DAY_AGO.find(normalized)?.groupValues?.getOrNull(1)?.toLongOrNull()?.let { return it }
-
-        MONTH_DAY.find(normalized)?.let { match ->
-            return try {
-                val month = match.groupValues[1].toInt()
-                val day = match.groupValues[2].toInt()
-                val today = LocalDate.now()
-                var candidate = LocalDate.of(today.year, month, day)
-                if (candidate.isAfter(today)) {
-                    candidate = candidate.minusYears(1)
-                }
-                ChronoUnit.DAYS.between(candidate, today)
-            } catch (_: DateTimeException) {
-                null
+    private fun inferCardRootAgeDays(cardRoot: AccessibilityNodeInfo): Long? {
+        val cardBounds = NodeUtils.bounds(cardRoot)
+        val upperCardLimit = cardBounds.top + (cardBounds.height() * 0.58f).toInt()
+        return NodeUtils.flatten(cardRoot)
+            .asSequence()
+            .filter { node -> node.isVisibleToUser }
+            .mapNotNull { node ->
+                val label = NodeUtils.combinedLabel(node)
+                if (label.isBlank() || !postTimeParser.looksLikeTimestamp(label)) return@mapNotNull null
+                val rect = NodeUtils.bounds(node)
+                if (rect.isEmpty || rect.centerY() > upperCardLimit) return@mapNotNull null
+                val age = postTimeParser.inferAgeDays(label) ?: return@mapNotNull null
+                rect.top to age
             }
-        }
+            .sortedBy { candidate -> candidate.first }
+            .firstOrNull()
+            ?.second
+    }
 
-        FULL_DATE.find(normalized)?.let { match ->
-            return try {
-                val year = match.groupValues[1].toInt()
-                val month = match.groupValues[2].toInt()
-                val day = match.groupValues[3].toInt()
-                val candidate = LocalDate.of(year, month, day)
-                ChronoUnit.DAYS.between(candidate, LocalDate.now())
-            } catch (_: DateTimeException) {
-                null
-            }
-        }
+    private fun looksRelevantToFeed(label: String): Boolean {
+        return postTimeParser.looksLikeTimestamp(label) ||
+            ACTION_MARKERS.any { marker -> label.contains(marker, ignoreCase = true) }
+    }
 
-        SHORT_DATE.find(normalized)?.let { match ->
-            return try {
-                val month = match.groupValues[1].toInt()
-                val day = match.groupValues[2].toInt()
-                val today = LocalDate.now()
-                var candidate = LocalDate.of(today.year, month, day)
-                if (candidate.isAfter(today)) {
-                    candidate = candidate.minusYears(1)
-                }
-                ChronoUnit.DAYS.between(candidate, today)
-            } catch (_: DateTimeException) {
-                null
-            }
-        }
+    private fun findLikelyCardRoot(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val rootBounds = NodeUtils.root(node)?.let(NodeUtils::bounds) ?: NodeUtils.bounds(node)
+        val screenWidth = rootBounds.width().coerceAtLeast(1)
+        val screenHeight = rootBounds.height().coerceAtLeast(1)
 
-        return null
+        return NodeUtils.ancestors(node, maxDepth = 7).firstOrNull { ancestor ->
+            val rect = NodeUtils.bounds(ancestor)
+            if (rect.isEmpty) return@firstOrNull false
+            if (rect.width() < screenWidth * 0.55f) return@firstOrNull false
+            if (rect.height() < screenHeight * 0.10f) return@firstOrNull false
+            if (rect.height() > screenHeight * 0.82f) return@firstOrNull false
+
+            val subtreeText = NodeUtils.collectSubtreeText(ancestor, maxDepth = 5, maxNodes = 120)
+            ACTION_MARKERS.count { marker ->
+                subtreeText.contains(marker, ignoreCase = true)
+            } >= 2
+        }
+    }
+
+    private fun stableCardKey(node: AccessibilityNodeInfo): String {
+        val rect = NodeUtils.bounds(node)
+        return "${rect.left}:${rect.top}:${rect.right}:${rect.bottom}"
     }
 
     companion object {
-        private val DAY_AGO = Regex("""(\d+)天前""")
-        private val MONTH_DAY = Regex("""(\d{1,2})月(\d{1,2})日""")
-        private val FULL_DATE = Regex("""(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})""")
-        private val SHORT_DATE = Regex("""(?<!\d)(\d{1,2})[-/.](\d{1,2})(?!\d)""")
+        private val ACTION_MARKERS = listOf("点赞", "已赞", "评论", "分享", "转发")
         private val DEFAULT_BLOCKED_KEYWORDS = setOf(
             "广告",
             "推广",
+            "赞助",
             "空友爱看",
             "爱看",
             "该内容来自",
@@ -102,9 +123,16 @@ class CardClassifier(
             "热推",
             "品牌馆",
             "推荐",
+            "推荐内容",
             "为你推荐",
             "黄钻",
             "续费",
+            "查看详情",
+            "了解更多",
+            "立即打开",
+            "点击进入",
+            "去看看",
+            "去购买",
         )
     }
 }
