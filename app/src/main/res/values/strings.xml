@@ -16,6 +16,9 @@
     <string name="action_run_once">按当前方法执行一轮</string>
     <string name="action_stop_run">停止当前任务</string>
     <string name="action_open_qq">打开手机 QQ</string>
+    <string name="action_capture_cookie_in_app">应用内获取 Cookie</string>
+    <string name="action_extract_cookie">提取并回填 Cookie</string>
+    <string name="action_reload_page">重新加载页面</string>
     <string name="duration_5">5 分钟</string>
     <string name="duration_10">10 分钟</string>
     <string name="duration_custom">自定义时长</string>
@@ -34,7 +37,15 @@
     <string name="option_stop_on_old">遇到超过 3 天的动态后停止</string>
     <string name="cookie_tutorial_title">Qzone Cookie 获取教程</string>
     <string name="cookie_tutorial_body">1. 最简单的方式是用电脑浏览器登录 QQ 空间：`https://user.qzone.qq.com/你的QQ号`。\n2. 按 `F12` 打开开发者工具，切到 `Network / 网络`。\n3. 刷新页面，找到 `feeds_html_act_all`，或者任何 `user.qzone.qq.com/proxy/domain/...` 请求。\n4. 点开请求，看 `Headers / 请求头` 里的 `cookie:` 整行。\n5. 复制整行 Cookie，粘贴到上面的输入框。\n6. 至少要包含 `p_skey` 或 `skey`，否则无法计算 `g_tk`。</string>
-    <string name="cookie_tutorial_expiry">Cookie 不是一次获取就能永久用。它有失效风险，常见原因包括：QQ 重新登录、长时间未使用、网页登录态过期、触发风控/验证、修改密码或安全设置。失效后通常只需要重新抓一次最新 Cookie。</string>
+    <string name="cookie_tutorial_expiry">现在也可以直接点“应用内获取 Cookie”，在内置网页里登录 QQ 空间后自动回填。Cookie 不是一次获取就能永久用。它有失效风险，常见原因包括：QQ 重新登录、长时间未使用、网页登录态过期、触发风控/验证、修改密码或安全设置。失效后通常只需要重新抓一次最新 Cookie。</string>
+    <string name="cookie_capture_title">应用内获取 Cookie</string>
+    <string name="cookie_capture_hint">会在应用内打开 QQ 空间网页。你登录并进入空间主页后，点“提取并回填 Cookie”即可返回。如果当前 WebView 已经有可用登录态，通常能直接提取。</string>
+    <string name="cookie_capture_status_loading">正在加载 QQ 空间网页…</string>
+    <string name="cookie_capture_status_waiting_login">还没有检测到可用 Cookie。请先在页面里完成登录并进入 QQ 空间主页。</string>
+    <string name="cookie_capture_status_ready">已检测到可用 Cookie，当前识别到的 QQ 号：%1$s</string>
+    <string name="cookie_capture_unknown_qq">未识别</string>
+    <string name="cookie_capture_failed">当前还没拿到可用 Cookie，请先完成登录再提取。</string>
+    <string name="cookie_capture_success">已回填 Qzone Cookie。</string>
     <string name="disclaimer">说明：本项目仅适用于手机 QQ。旧方法是无障碍 UI 点按；新方法是 Qzone Cookie 队列补赞。当前没有做 QQ 插件注入，不修改 QQ 安装包。Cookie 属于登录态，请不要发给别人。</string>
     <string name="notification_channel_name">QQ 自动补赞</string>
     <string name="notification_channel_description">显示当前自动补赞状态，并允许随时停止。</string>

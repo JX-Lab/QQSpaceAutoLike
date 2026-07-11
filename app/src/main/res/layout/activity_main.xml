@@ -500,6 +500,14 @@
                         android:minLines="4"
                         android:textColor="@color/text_primary"
                         android:textColorHint="@color/text_secondary" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnCaptureCookie"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="@string/action_capture_cookie_in_app" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

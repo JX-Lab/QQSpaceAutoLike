@@ -28,6 +28,10 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ui.CookieCaptureActivity"
+            android:exported="false" />
+
         <receiver
             android:name=".service.ServiceCommandReceiver"
             android:exported="false" />

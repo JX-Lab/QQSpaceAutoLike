@@ -72,6 +72,23 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+    private val cookieCaptureLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode != RESULT_OK) return@registerForActivityResult
+            val data = result.data ?: return@registerForActivityResult
+            val cookie = data.getStringExtra(CookieCaptureActivity.EXTRA_COOKIE).orEmpty()
+            val myQq = data.getStringExtra(CookieCaptureActivity.EXTRA_MY_QQ).orEmpty()
+            bindingUi = true
+            if (myQq.isNotBlank()) {
+                inputMyQq.setText(myQq)
+            }
+            inputQzoneCookie.setText(cookie)
+            bindingUi = false
+            persistCurrentUiState()
+            refreshStatus()
+            Toast.makeText(this, R.string.cookie_capture_success, Toast.LENGTH_SHORT).show()
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -142,6 +159,10 @@ class MainActivity : AppCompatActivity() {
             if (!QqAutoLikeService.launchQq(this)) {
                 toast(R.string.toast_qq_open_failed)
             }
+        }
+
+        findViewById<Button>(R.id.btnCaptureCookie).setOnClickListener {
+            cookieCaptureLauncher.launch(Intent(this, CookieCaptureActivity::class.java))
         }
 
         findViewById<Button>(R.id.btnRunNow).setOnClickListener {
