@@ -13,6 +13,7 @@ class GestureHelper(
 ) {
 
     enum class ScrollDistance {
+        REVEAL,
         CARD,
         PAGE,
     }
@@ -49,6 +50,7 @@ class GestureHelper(
         val startX = metrics.widthPixels / 2 + randomDelay.jitter(36)
         val endX = startX + randomDelay.jitter(18)
         val (startRatio, endRatio, startJitter, endJitter) = when (distance) {
+            ScrollDistance.REVEAL -> ScrollProfile(0.73f, 0.68f, 14, 10)
             ScrollDistance.CARD -> ScrollProfile(0.71f, 0.63f, 18, 12)
             ScrollDistance.PAGE -> ScrollProfile(0.72f, 0.50f, 28, 20)
         }

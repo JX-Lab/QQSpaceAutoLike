@@ -9,7 +9,7 @@ data class FeedCard(
     val key: String,
     val bounds: Rect,
     val likeNode: AccessibilityNodeInfo?,
-    val likeTapPoint: Point?,
+    val likeTapPoints: List<Point>,
     val ageDays: Long?,
     val isAdvertisement: Boolean,
     val isAlreadyLiked: Boolean,
