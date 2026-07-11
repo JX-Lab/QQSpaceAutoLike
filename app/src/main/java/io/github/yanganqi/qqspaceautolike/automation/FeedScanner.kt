@@ -18,7 +18,9 @@ class FeedScanner(
         onStatus: (String) -> Unit,
     ): ScanSummary {
         val deadline = config.effectiveRunMinutes()?.let { System.currentTimeMillis() + it * 60_000L }
-        val seenNodes = linkedSetOf<String>()
+        val seenCards = linkedSetOf<String>()
+        val screenHeight = service.resources.displayMetrics.heightPixels
+        val screenWidth = service.resources.displayMetrics.widthPixels
         var likes = 0
         var scrolls = 0
         var feedConfirmed = false
@@ -46,43 +48,62 @@ class FeedScanner(
             if (!feedConfirmed && UiNavigator.isProfileTopVisible(root)) {
                 onStatus("当前还在空间主页顶部，继续下滑进入动态区")
             }
-            val visibleActionBar = hasVisibleActionBar(root)
-            var likedThisRound = 0
-            for (node in findLikeCandidates(root)) {
+
+            val cards = classifier.extractVisibleCards(root, screenWidth, screenHeight)
+            var likedThisRound = false
+
+            for (card in cards) {
                 if (stopRequested()) break
-                val key = NodeUtils.stableKey(node)
-                if (!seenNodes.add(key)) continue
-                if (classifier.shouldSkip(node, config.skipAds)) continue
-                if (isAlreadyLiked(node)) continue
-                if (config.stopOnOlderPosts && classifier.isOlderThan(node, config.maxPostAgeDays)) {
+                if (seenCards.contains(card.key)) continue
+
+                if (classifier.shouldSkip(card, config.skipAds)) {
+                    markSeenIfStable(card, seenCards, screenHeight)
+                    continue
+                }
+                if (card.isAlreadyLiked) {
+                    markSeenIfStable(card, seenCards, screenHeight)
+                    continue
+                }
+                if (config.stopOnOlderPosts && classifier.isOlderThan(card, config.maxPostAgeDays)) {
+                    markSeenIfStable(card, seenCards, screenHeight)
                     continue
                 }
 
-                if (gestureHelper.tap(node, preferGesture = true)) {
+                val likeNode = card.likeNode ?: continue
+                if (!card.hasActionRow) continue
+
+                if (gestureHelper.tap(likeNode, preferGesture = true)) {
                     likes += 1
-                    likedThisRound += 1
+                    likedThisRound = true
+                    seenCards += card.key
                     onStatus("已点赞 $likes 条动态")
                     randomDelay.betweenLikes()
                     break
                 }
             }
 
-            if (likedThisRound > 0) {
+            if (likedThisRound) {
                 continue
             }
 
-            if (config.stopOnOlderPosts && classifier.reachedOlderContent(root, config.maxPostAgeDays)) {
+            if (config.stopOnOlderPosts && classifier.shouldStopOnOlderCards(cards, config.maxPostAgeDays)) {
                 return ScanSummary(likes, scrolls, "检测到超过 ${config.maxPostAgeDays} 天的动态")
             }
 
-            if (likedThisRound == 0 && !visibleActionBar) {
-                onStatus("当前页面还没露出点赞区，继续下滑")
-            }
-            if (likedThisRound == 0 && visibleActionBar) {
-                onStatus("当前这屏没有可点赞内容，继续下滑")
+            when {
+                cards.isEmpty() -> onStatus("当前屏还没识别到动态卡片，继续下滑")
+                cards.none { card -> card.hasActionRow } -> onStatus("当前屏卡片还没露出操作区，继续下滑")
+                cards.all { card -> classifier.shouldSkip(card, config.skipAds) } ->
+                    onStatus("当前屏主要是广告卡片，继续下滑")
+                else -> onStatus("当前屏没有可点赞的动态，继续下滑")
             }
 
-            if (!gestureHelper.scrollDown(root)) {
+            val scrollDistance = if (cards.isNotEmpty()) {
+                GestureHelper.ScrollDistance.CARD
+            } else {
+                GestureHelper.ScrollDistance.PAGE
+            }
+            if (!gestureHelper.scrollDown(root, scrollDistance)) {
                 return ScanSummary(likes, scrolls, "无法继续下滑")
             }
 
@@ -94,50 +115,13 @@ class FeedScanner(
         return ScanSummary(likes, scrolls, "任务已被停止")
     }
 
-    private fun hasVisibleActionBar(root: AccessibilityNodeInfo): Boolean {
-        return NodeUtils.allTexts(root).any { text ->
-            ACTION_ROW_KEYWORDS.any { keyword -> text.contains(keyword, ignoreCase = true) }
-        }
-    }
-
-    private fun findLikeCandidates(root: AccessibilityNodeInfo): List<AccessibilityNodeInfo> {
-        val width = service.resources.displayMetrics.widthPixels
-        val height = service.resources.displayMetrics.heightPixels
-        return NodeUtils.flatten(root)
-            .filter { node ->
-                if (!node.isVisibleToUser) return@filter false
-
-                val label = NodeUtils.combinedLabel(node)
-                if (label.isBlank()) return@filter false
-                if (!LIKE_KEYWORDS.any { label.contains(it, ignoreCase = true) }) return@filter false
-                if (NEGATIVE_KEYWORDS.any { label.contains(it, ignoreCase = true) }) return@filter false
-                if (NodeUtils.findClickable(node) == null) return@filter false
-                if (!classifier.belongsToFeedCard(node)) return@filter false
-
-                val rect = NodeUtils.bounds(node)
-                if (rect.width() <= 0 || rect.height() <= 0) return@filter false
-                if (rect.centerX() < width * 0.42f) return@filter false
-                if (rect.centerY() < height * 0.16f) return@filter false
-                if (rect.centerY() > height * 0.88f) return@filter false
-                if (rect.height() > height * 0.22f) return@filter false
-                if (rect.width() > width * 0.55f) return@filter false
-                true
-            }
-            .sortedBy { node -> NodeUtils.bounds(node).centerY() }
-    }
-
-    private fun isAlreadyLiked(node: AccessibilityNodeInfo): Boolean {
-        val label = NodeUtils.combinedLabel(node)
-        return node.isSelected ||
-            node.isChecked ||
-            label.contains("已赞") ||
-            label.contains("取消赞") ||
-            label.contains("收回赞")
-    }
-
-    companion object {
-        private val LIKE_KEYWORDS = listOf("点赞", "赞", "like")
-        private val ACTION_ROW_KEYWORDS = listOf("评论", "转发", "分享")
-        private val NEGATIVE_KEYWORDS = listOf("取消赞", "收回赞", "赞了", "赞过", "赞同")
+    private fun markSeenIfStable(
+        card: FeedCard,
+        seenCards: MutableSet<String>,
+        screenHeight: Int,
+    ) {
+        if (card.bounds.top < screenHeight * 0.14f) return
+        if (card.bounds.bottom > screenHeight * 0.90f) return
+        seenCards += card.key
     }
 }
