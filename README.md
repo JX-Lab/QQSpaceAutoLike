@@ -1,130 +1,130 @@
 # QQSpaceAutoLike
 
-`QQSpaceAutoLike` is an Android app prototype that uses `AccessibilityService` to open mobile QQ, navigate into Qzone, scan feed cards, and perform a controlled "like back" pass.
+`QQSpaceAutoLike` 是一个仅适用于手机 QQ 的 Android 原型项目。
 
-The project is implemented as a native Android app with `Kotlin`, not an `Auto.js` script. The goal is to keep the automation logic maintainable, testable, and easy to adjust for different QQ UI variants.
+当前实现采用 `A1` 方案：
+- 后台定时拉取 QQ 空间好友动态
+- 把可补赞的说说先放进本地待补赞队列
+- 只有当你这台手机上的 `QQ` 进入前台时，才按随机延迟执行一轮补赞
 
-## Status
+它不是“好友一发就秒赞”的工具，也不是 QQ 插件注入方案。
 
-- Android app scaffold is complete
-- Accessibility service flow is implemented
-- Basic navigation, feed scanning, ad filtering, random delay, and stop conditions are implemented
-- GitHub Actions can build a debug APK on push and publish a release APK on tag
-- The app still requires real-device tuning against specific QQ versions
+## 适用范围
 
-## What It Does
+- 仅适用于 `手机 QQ`
+- 依赖 `AccessibilityService` 监听手机 QQ 是否进入前台
+- 依赖你手动提供 `Qzone Cookie`
 
-- Watches for QQ entering the foreground
-- Tries to enter `动态` and then `好友动态 / 空间动态`
-- Scans visible cards for likely "like" controls
-- Skips obvious ads, promoted content, and already-processed nodes
-- Stops after timeout, repeated no-op scans, or old feed items
-- Exposes a notification action to stop the run manually
+不适用：
+- TIM
+- QQ HD / 平板变体
+- PC QQ
+- 需要 Root / Xposed / LSPosed 注入的插件场景
 
-## Non-Goals
-
-- No root access
-- No QQ app modification
-- No use of private QQ APIs
-- No guarantee that every QQ version exposes the same accessibility tree
-
-## Project Layout
+## 当前原理
 
 ```text
-QQSpaceAutoLike/
-├── .github/workflows/
-│   ├── android.yml
-│   └── release.yml
-├── app/
-│   └── src/main/
-│       ├── java/io/github/yanganqi/qqspaceautolike/
-│       │   ├── automation/
-│       │   ├── config/
-│       │   ├── service/
-│       │   └── ui/
-│       ├── res/
-│       └── AndroidManifest.xml
-├── gradle/
-├── build.gradle.kts
-└── settings.gradle.kts
+后台轮询 Qzone feed
+  ↓
+发现新的好友说说链接
+  ↓
+跳过广告 / 跳过自己的说说 / 本地去重
+  ↓
+写入待补赞队列
+  ↓
+等待你打开手机 QQ
+  ↓
+按延迟窗口 + 随机等待执行一轮补赞
 ```
 
-## How It Works
+## 为什么这样做
 
-```text
-QQ enters foreground
-  ↓
-Accessibility service receives the event
-  ↓
-Try to enter Qzone feed
-  ↓
-Scan visible nodes for candidate like buttons
-  ↓
-Filter ads / duplicates / invalid targets
-  ↓
-Click with randomized pacing
-  ↓
-Scroll and continue
-  ↓
-Stop on timeout / old content / repeated no-progress scans
-```
+早期 UI 自动化路线的问题很明显：
+- 长短卡片混排时容易误判
+- 有时会点进图片
+- 广告角标滑出屏幕后容易误赞
+- 很难做成“不是秒赞、但又接近真人”的行为
 
-## Key Implementation Notes
+所以当前主路径不再依赖“识别屏幕上的点赞按钮”，而是改成：
+- 用 Qzone 网页协议拉取好友动态链接
+- 用本地队列控制补赞时机
+- 只把“手机 QQ 进入前台”当作点赞会话触发器
 
-- Navigation prefers text labels and clickable parent nodes over fixed coordinates
-- Scroll prefers `ACTION_SCROLL_FORWARD`, then falls back to gestures
-- Like detection uses a heuristic mix of text/content-description, clickability, size, and screen position
-- Ad filtering uses surrounding subtree text instead of a single node label
-- Old-feed detection supports formats such as `昨天`, `前天`, `N天前`, `7月10日`, and `2026-07-10`
+## 当前行为
+
+- 后台每隔一段时间轮询一次好友动态
+- 新动态不会立刻点赞
+- 每条动态会先等待你设置的最短延迟窗口
+- 只有你打开手机 QQ 时，才会在本次前台会话里随机补赞若干条
+
+可调项：
+- 轮询间隔
+- 最短延迟补赞时间
+- 每次打开 QQ 最多补赞多少条
+- 会话最长持续时间
+- 是否跳过广告
+- 是否启用随机等待
+
+## 需要你提供的内容
+
+应用内至少需要：
+- `QQ 号`
+- `Qzone Cookie`
+
+Cookie 至少应包含：
+- `p_skey`
+或
+- `skey`
+
+没有这些字段时，无法计算 `g_tk`，也就无法请求 Qzone 接口。
+
+## 不是插件注入
+
+这个仓库当前不是 QQ 插件，也不修改 QQ 安装包。
+
+原因很简单：
+- 插件注入通常意味着进入 QQ 进程做 hook
+- 风险和维护成本都显著更高
+- QQ 版本一变，hook 点往往就要跟着改
+
+所以这里优先保留的是：
+- 独立 Android 应用
+- 无障碍监听前台状态
+- Qzone Cookie 协议补赞
 
 ## Build
 
-Requirements:
-
+要求：
 - `JDK 17`
 - Android SDK
-- Android Studio or a working Gradle Android toolchain
 
-Local build:
+本地构建：
 
 ```bash
 ./gradlew assembleDebug
 ```
 
-## Install And Test
+## 安装与测试
 
-1. Build or download the debug APK
-2. Install it on an Android device
-3. Enable the app's accessibility service
-4. Grant notification permission if prompted
-5. Open mobile QQ and observe whether the app can enter Qzone and start a pass
+1. 安装 APK
+2. 打开应用
+3. 启用无障碍服务
+4. 填入 `QQ号` 和 `Qzone Cookie`
+5. 设置轮询间隔、延迟补赞时间、单次会话上限
+6. 打开手机 QQ，观察是否开始一轮补赞
 
-## GitHub Actions
+## 风险说明
 
-- Push to `main`: builds `app-debug.apk` as an Actions artifact
-- Push a tag like `v0.1.0`: publishes a prerelease APK in GitHub Releases
+- `Cookie` 本质上是登录态，泄露后风险很高
+- 非官方网页协议可能随时变化
+- Qzone 侧可能出现风控、验证、登录失效
+- 即使不是秒赞，也不能保证完全拟人
 
-Example:
+## 现状
 
-```bash
-git tag v0.1.0
-git push origin main --tags
-```
+当前版本已经把主路径切到 `A1`：
+- 后台侦测好友动态
+- 本地待补赞队列
+- 手机 QQ 前台触发补赞
 
-## Known Risks
-
-- QQ UI copy and layout can change across versions
-- Some ROMs aggressively throttle accessibility events
-- Some like buttons may not expose usable text or descriptions
-- Heuristics for ads and old content still need device-specific tuning
-
-## Next Steps
-
-1. Capture accessibility node trees from the target QQ version
-2. Refine entry labels for `动态 / 好友动态 / 空间动态`
-3. Add more button-identification and ad-filter rules
-4. Validate stop conditions on real devices
-
-## Disclaimer
-
-This repository is a research/prototyping project around Android accessibility automation. Anyone using it is responsible for understanding the platform, app policy, and account-risk implications of automating user actions.
+旧的卡片识别代码仍保留在仓库里，方便对照和回退，但不再是当前主路径。

@@ -36,12 +36,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var textRuntimeDetail: TextView
     private lateinit var durationGroup: RadioGroup
     private lateinit var inputCustomDuration: EditText
+    private lateinit var inputMyQq: EditText
+    private lateinit var inputQzoneCookie: EditText
+    private lateinit var inputPollInterval: EditText
+    private lateinit var inputMinLikeAge: EditText
+    private lateinit var inputMaxLikesPerSession: EditText
     private lateinit var btnStopRun: Button
     private lateinit var switchAutoRun: SwitchCompat
     private lateinit var switchSkipAds: SwitchCompat
     private lateinit var switchRandomDelay: SwitchCompat
-    private lateinit var switchSinglePass: SwitchCompat
-    private lateinit var switchStopOnOld: SwitchCompat
 
     private var runtimeStatusListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
     private var bindingUi = false
@@ -90,12 +93,15 @@ class MainActivity : AppCompatActivity() {
         textRuntimeDetail = findViewById(R.id.textRuntimeDetail)
         durationGroup = findViewById(R.id.groupDuration)
         inputCustomDuration = findViewById(R.id.inputCustomDuration)
+        inputMyQq = findViewById(R.id.inputMyQq)
+        inputQzoneCookie = findViewById(R.id.inputQzoneCookie)
+        inputPollInterval = findViewById(R.id.inputPollInterval)
+        inputMinLikeAge = findViewById(R.id.inputMinLikeAge)
+        inputMaxLikesPerSession = findViewById(R.id.inputMaxLikesPerSession)
         btnStopRun = findViewById(R.id.btnStopRun)
         switchAutoRun = findViewById(R.id.switchAutoRun)
         switchSkipAds = findViewById(R.id.switchSkipAds)
         switchRandomDelay = findViewById(R.id.switchRandomDelay)
-        switchSinglePass = findViewById(R.id.switchSinglePass)
-        switchStopOnOld = findViewById(R.id.switchStopOnOld)
     }
 
     private fun bindActions() {
@@ -154,11 +160,23 @@ class MainActivity : AppCompatActivity() {
         }
 
         listOf(
+            inputMyQq,
+            inputQzoneCookie,
+            inputPollInterval,
+            inputMinLikeAge,
+            inputMaxLikesPerSession,
+        ).forEach { input ->
+            input.doAfterTextChanged {
+                if (!bindingUi) {
+                    persistCurrentUiState()
+                }
+            }
+        }
+
+        listOf(
             switchAutoRun,
             switchSkipAds,
             switchRandomDelay,
-            switchSinglePass,
-            switchStopOnOld,
         ).forEach { switchView ->
             switchView.setOnCheckedChangeListener { _, _ ->
                 if (!bindingUi) {
@@ -175,9 +193,12 @@ class MainActivity : AppCompatActivity() {
         switchAutoRun.isChecked = config.autoRunOnQqOpen
         switchSkipAds.isChecked = config.skipAds
         switchRandomDelay.isChecked = config.randomDelay
-        switchSinglePass.isChecked = config.singlePassPerOpen
-        switchStopOnOld.isChecked = config.stopOnOlderPosts
         inputCustomDuration.setText(config.customRunMinutes.toString())
+        inputMyQq.setText(config.myQq)
+        inputQzoneCookie.setText(config.qzoneCookie)
+        inputPollInterval.setText(config.pollIntervalMinutes.toString())
+        inputMinLikeAge.setText(config.minLikeAgeMinutes.toString())
+        inputMaxLikesPerSession.setText(config.maxLikesPerSession.toString())
         durationGroup.check(
             when (config.runDuration) {
                 RunDuration.MINUTES_5 -> R.id.duration5
@@ -195,8 +216,11 @@ class MainActivity : AppCompatActivity() {
                 autoRunOnQqOpen = switchAutoRun.isChecked,
                 skipAds = switchSkipAds.isChecked,
                 randomDelay = switchRandomDelay.isChecked,
-                singlePassPerOpen = switchSinglePass.isChecked,
-                stopOnOlderPosts = switchStopOnOld.isChecked,
+                myQq = inputMyQq.text?.toString().orEmpty(),
+                qzoneCookie = inputQzoneCookie.text?.toString().orEmpty(),
+                pollIntervalMinutes = selectedPollIntervalMinutes(),
+                minLikeAgeMinutes = selectedMinLikeAgeMinutes(),
+                maxLikesPerSession = selectedMaxLikesPerSession(),
                 runDuration = selectedDuration(),
                 customRunMinutes = selectedCustomRunMinutes(),
             ),
@@ -217,6 +241,30 @@ class MainActivity : AppCompatActivity() {
             ?.toIntOrNull()
             ?.coerceIn(AppConfig.MIN_CUSTOM_RUN_MINUTES, AppConfig.MAX_CUSTOM_RUN_MINUTES)
             ?: AppConfig.DEFAULT_CUSTOM_RUN_MINUTES
+    }
+
+    private fun selectedPollIntervalMinutes(): Int {
+        return inputPollInterval.text?.toString()
+            ?.trim()
+            ?.toIntOrNull()
+            ?.coerceIn(AppConfig.MIN_POLL_INTERVAL_MINUTES, AppConfig.MAX_POLL_INTERVAL_MINUTES)
+            ?: AppConfig.DEFAULT_POLL_INTERVAL_MINUTES
+    }
+
+    private fun selectedMinLikeAgeMinutes(): Int {
+        return inputMinLikeAge.text?.toString()
+            ?.trim()
+            ?.toIntOrNull()
+            ?.coerceIn(AppConfig.MIN_MIN_LIKE_AGE_MINUTES, AppConfig.MAX_MIN_LIKE_AGE_MINUTES)
+            ?: AppConfig.DEFAULT_MIN_LIKE_AGE_MINUTES
+    }
+
+    private fun selectedMaxLikesPerSession(): Int {
+        return inputMaxLikesPerSession.text?.toString()
+            ?.trim()
+            ?.toIntOrNull()
+            ?.coerceIn(AppConfig.MIN_MAX_LIKES_PER_SESSION, AppConfig.MAX_MAX_LIKES_PER_SESSION)
+            ?: AppConfig.DEFAULT_MAX_LIKES_PER_SESSION
     }
 
     private fun syncCustomDurationVisibility() {

@@ -7,8 +7,8 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityManager
+import io.github.yanganqi.qqspaceautolike.R
 import io.github.yanganqi.qqspaceautolike.automation.AutomationOrchestrator
-import io.github.yanganqi.qqspaceautolike.automation.UiNavigator
 import io.github.yanganqi.qqspaceautolike.config.AppConfig
 import io.github.yanganqi.qqspaceautolike.config.ConfigStore
 import kotlinx.coroutines.CancellationException
@@ -18,6 +18,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class QqAutoLikeService : AccessibilityService() {
@@ -39,14 +40,9 @@ class QqAutoLikeService : AccessibilityService() {
     @Volatile
     private var lastObservedPackage: String? = null
 
-    @Volatile
-    private var requireSpaceReentryAfterStop = false
-
-    @Volatile
-    private var spaceExitObservedAfterStop = false
-
     private var qqSessionConsumed = false
     private var automationJob: Job? = null
+    private var feedPollingJob: Job? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -65,12 +61,12 @@ class QqAutoLikeService : AccessibilityService() {
         if (runtimeStatus.isRunning) {
             runtimeStatusStore.setFinished(runtimeStatus.message ?: "服务已重连")
         }
+        startBackgroundPollingLoop()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val packageName = event?.packageName?.toString() ?: return
         handlePackageTransition(packageName)
-        updateAutoRunEligibility(packageName)
 
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
             packageName == QQ_PACKAGE_NAME &&
@@ -92,6 +88,8 @@ class QqAutoLikeService : AccessibilityService() {
             configListener?.let(configStore::unregisterListener)
         }
         configListener = null
+        feedPollingJob?.cancel()
+        feedPollingJob = null
         if (::stopOverlayController.isInitialized) {
             stopOverlayController.hide()
         }
@@ -104,31 +102,41 @@ class QqAutoLikeService : AccessibilityService() {
     fun currentObservedPackage(): String? = lastObservedPackage
 
     private fun handlePackageTransition(packageName: String) {
-        if (lastObservedPackage == QQ_PACKAGE_NAME && packageName != QQ_PACKAGE_NAME) {
-            if (!requireSpaceReentryAfterStop && packageName != this.packageName) {
-                qqSessionConsumed = false
-            }
+        if (lastObservedPackage == QQ_PACKAGE_NAME &&
+            packageName != QQ_PACKAGE_NAME &&
+            packageName != this.packageName
+        ) {
+            qqSessionConsumed = false
         }
         lastObservedPackage = packageName
     }
 
-    private fun updateAutoRunEligibility(packageName: String) {
-        if (!requireSpaceReentryAfterStop) return
+    private fun startBackgroundPollingLoop() {
+        if (feedPollingJob?.isActive == true) return
+        feedPollingJob = serviceScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                val configSnapshot = currentConfig
+                if (configSnapshot.autoRunOnQqOpen && automationJob == null) {
+                    val statusText = runCatching {
+                        AutomationOrchestrator(
+                            service = this@QqAutoLikeService,
+                            config = configSnapshot,
+                            stopRequested = { false },
+                            onStatus = {},
+                        ).pollPendingQueue()
+                    }.getOrElse { error ->
+                        "后台侦测失败：${error.message ?: "未知错误"}"
+                    }
+                    if (automationJob == null) {
+                        runtimeStatusStore.setFinished(statusText)
+                    }
+                }
 
-        if (packageName != QQ_PACKAGE_NAME) {
-            return
-        }
-
-        val inSpaceContext = UiNavigator.isSpaceContextVisible(rootInActiveWindow)
-        if (!inSpaceContext) {
-            spaceExitObservedAfterStop = true
-            return
-        }
-
-        if (spaceExitObservedAfterStop) {
-            requireSpaceReentryAfterStop = false
-            spaceExitObservedAfterStop = false
-            qqSessionConsumed = false
+                val delayMs = configSnapshot.pollIntervalMinutes
+                    .coerceIn(AppConfig.MIN_POLL_INTERVAL_MINUTES, AppConfig.MAX_POLL_INTERVAL_MINUTES) *
+                    60_000L
+                delay(delayMs)
+            }
         }
     }
 
@@ -136,12 +144,8 @@ class QqAutoLikeService : AccessibilityService() {
         if (automationJob?.isActive == true) return false
 
         stopRequested = false
-        if (trigger == Trigger.MANUAL) {
-            requireSpaceReentryAfterStop = false
-            spaceExitObservedAfterStop = false
-        }
         if (trigger == Trigger.MANUAL && currentObservedPackage() != QQ_PACKAGE_NAME) {
-            updateRunningStatus("正在拉起手机 QQ")
+            updateRunningStatus(getString(R.string.status_launching_qq))
             if (!launchQq(this)) {
                 finishStatus("无法打开手机 QQ")
                 return false
@@ -150,7 +154,7 @@ class QqAutoLikeService : AccessibilityService() {
 
         val configSnapshot = currentConfig
         automationJob = serviceScope.launch {
-            updateRunningStatus(getString(io.github.yanganqi.qqspaceautolike.R.string.notification_running_text))
+            updateRunningStatus(getString(R.string.notification_running_text))
             stopOverlayController.show()
             try {
                 val summary = AutomationOrchestrator(
@@ -159,7 +163,7 @@ class QqAutoLikeService : AccessibilityService() {
                     stopRequested = ::isStopRequested,
                     onStatus = ::updateRunningStatus,
                 ).run()
-                finishStatus("本轮结束：${summary.reason}；点赞 ${summary.likesPerformed} 条")
+                finishStatus("本轮结束：${summary.reason}；补赞 ${summary.likesPerformed} 条")
                 delay(900)
             } catch (cancelled: CancellationException) {
                 finishStatus("任务已停止")
@@ -168,7 +172,6 @@ class QqAutoLikeService : AccessibilityService() {
                 finishStatus("执行失败：${error.message ?: "未知错误"}")
                 delay(1_200)
             } finally {
-                lockAutoRunUntilSpaceReentry()
                 stopOverlayController.hide()
                 notificationFactory.cancel()
                 stopRequested = false
@@ -192,16 +195,10 @@ class QqAutoLikeService : AccessibilityService() {
         runtimeStatusStore.setFinished(text)
     }
 
-    private fun lockAutoRunUntilSpaceReentry() {
-        requireSpaceReentryAfterStop = true
-        spaceExitObservedAfterStop = false
-        qqSessionConsumed = true
-    }
-
     private fun requestStop(reason: String): Boolean {
         val job = automationJob ?: return false
         if (reason == "external request" || reason == "overlay stop button") {
-            lockAutoRunUntilSpaceReentry()
+            qqSessionConsumed = true
         }
         stopRequested = true
         job.cancel(CancellationException(reason))
