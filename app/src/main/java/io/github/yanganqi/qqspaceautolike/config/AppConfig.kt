@@ -13,7 +13,20 @@ enum class RunDuration(val preferenceValue: String, val minutes: Long?) {
     }
 }
 
+enum class AutomationMode(val preferenceValue: String) {
+    LEGACY_UI("legacy_ui"),
+    QZONE_QUEUE("qzone_queue"),
+    ;
+
+    companion object {
+        fun fromPreference(value: String?): AutomationMode {
+            return entries.firstOrNull { it.preferenceValue == value } ?: QZONE_QUEUE
+        }
+    }
+}
+
 data class AppConfig(
+    val mode: AutomationMode = AutomationMode.QZONE_QUEUE,
     val autoRunOnQqOpen: Boolean = true,
     val skipAds: Boolean = true,
     val randomDelay: Boolean = true,

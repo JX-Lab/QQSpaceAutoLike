@@ -11,6 +11,7 @@ class ConfigStore(context: Context) {
 
     fun load(): AppConfig {
         return AppConfig(
+            mode = AutomationMode.fromPreference(preferences.getString(KEY_MODE, AutomationMode.QZONE_QUEUE.preferenceValue)),
             autoRunOnQqOpen = preferences.getBoolean(KEY_AUTO_RUN, true),
             skipAds = preferences.getBoolean(KEY_SKIP_ADS, true),
             randomDelay = preferences.getBoolean(KEY_RANDOM_DELAY, true),
@@ -30,6 +31,7 @@ class ConfigStore(context: Context) {
 
     fun save(config: AppConfig) {
         preferences.edit {
+            putString(KEY_MODE, config.mode.preferenceValue)
             putBoolean(KEY_AUTO_RUN, config.autoRunOnQqOpen)
             putBoolean(KEY_SKIP_ADS, config.skipAds)
             putBoolean(KEY_RANDOM_DELAY, config.randomDelay)
@@ -61,6 +63,7 @@ class ConfigStore(context: Context) {
 
     companion object {
         private const val PREFS_NAME = "qq_space_auto_like"
+        private const val KEY_MODE = "mode"
         private const val KEY_AUTO_RUN = "auto_run_on_qq_open"
         private const val KEY_SKIP_ADS = "skip_ads"
         private const val KEY_RANDOM_DELAY = "random_delay"

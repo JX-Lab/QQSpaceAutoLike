@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.widget.Button
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
@@ -18,8 +19,10 @@ import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
+import com.google.android.material.tabs.TabLayout
 import io.github.yanganqi.qqspaceautolike.R
 import io.github.yanganqi.qqspaceautolike.config.AppConfig
+import io.github.yanganqi.qqspaceautolike.config.AutomationMode
 import io.github.yanganqi.qqspaceautolike.config.ConfigStore
 import io.github.yanganqi.qqspaceautolike.config.RunDuration
 import io.github.yanganqi.qqspaceautolike.service.QqAutoLikeService
@@ -34,17 +37,30 @@ class MainActivity : AppCompatActivity() {
     private lateinit var textQqStatus: TextView
     private lateinit var textRuntimeStatus: TextView
     private lateinit var textRuntimeDetail: TextView
-    private lateinit var durationGroup: RadioGroup
-    private lateinit var inputCustomDuration: EditText
+    private lateinit var tabMode: TabLayout
+    private lateinit var pageLegacy: LinearLayout
+    private lateinit var pageQzone: LinearLayout
+
+    private lateinit var durationGroupLegacy: RadioGroup
+    private lateinit var inputCustomDurationLegacy: EditText
+    private lateinit var switchAutoRunLegacy: SwitchCompat
+    private lateinit var switchSkipAdsLegacy: SwitchCompat
+    private lateinit var switchRandomDelayLegacy: SwitchCompat
+    private lateinit var switchSinglePassLegacy: SwitchCompat
+    private lateinit var switchStopOnOldLegacy: SwitchCompat
+
+    private lateinit var durationGroupQzone: RadioGroup
+    private lateinit var inputCustomDurationQzone: EditText
     private lateinit var inputMyQq: EditText
     private lateinit var inputQzoneCookie: EditText
     private lateinit var inputPollInterval: EditText
     private lateinit var inputMinLikeAge: EditText
     private lateinit var inputMaxLikesPerSession: EditText
+    private lateinit var switchAutoRunQzone: SwitchCompat
+    private lateinit var switchSkipAdsQzone: SwitchCompat
+    private lateinit var switchRandomDelayQzone: SwitchCompat
+
     private lateinit var btnStopRun: Button
-    private lateinit var switchAutoRun: SwitchCompat
-    private lateinit var switchSkipAds: SwitchCompat
-    private lateinit var switchRandomDelay: SwitchCompat
 
     private var runtimeStatusListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
     private var bindingUi = false
@@ -91,17 +107,30 @@ class MainActivity : AppCompatActivity() {
         textQqStatus = findViewById(R.id.textQqStatus)
         textRuntimeStatus = findViewById(R.id.textRuntimeStatus)
         textRuntimeDetail = findViewById(R.id.textRuntimeDetail)
-        durationGroup = findViewById(R.id.groupDuration)
-        inputCustomDuration = findViewById(R.id.inputCustomDuration)
+        tabMode = findViewById(R.id.tabMode)
+        pageLegacy = findViewById(R.id.pageLegacy)
+        pageQzone = findViewById(R.id.pageQzone)
+
+        durationGroupLegacy = findViewById(R.id.groupDurationLegacy)
+        inputCustomDurationLegacy = findViewById(R.id.inputCustomDurationLegacy)
+        switchAutoRunLegacy = findViewById(R.id.switchAutoRunLegacy)
+        switchSkipAdsLegacy = findViewById(R.id.switchSkipAdsLegacy)
+        switchRandomDelayLegacy = findViewById(R.id.switchRandomDelayLegacy)
+        switchSinglePassLegacy = findViewById(R.id.switchSinglePassLegacy)
+        switchStopOnOldLegacy = findViewById(R.id.switchStopOnOldLegacy)
+
+        durationGroupQzone = findViewById(R.id.groupDurationQzone)
+        inputCustomDurationQzone = findViewById(R.id.inputCustomDurationQzone)
         inputMyQq = findViewById(R.id.inputMyQq)
         inputQzoneCookie = findViewById(R.id.inputQzoneCookie)
         inputPollInterval = findViewById(R.id.inputPollInterval)
         inputMinLikeAge = findViewById(R.id.inputMinLikeAge)
         inputMaxLikesPerSession = findViewById(R.id.inputMaxLikesPerSession)
+        switchAutoRunQzone = findViewById(R.id.switchAutoRunQzone)
+        switchSkipAdsQzone = findViewById(R.id.switchSkipAdsQzone)
+        switchRandomDelayQzone = findViewById(R.id.switchRandomDelayQzone)
+
         btnStopRun = findViewById(R.id.btnStopRun)
-        switchAutoRun = findViewById(R.id.switchAutoRun)
-        switchSkipAds = findViewById(R.id.switchSkipAds)
-        switchRandomDelay = findViewById(R.id.switchRandomDelay)
     }
 
     private fun bindActions() {
@@ -146,15 +175,38 @@ class MainActivity : AppCompatActivity() {
             refreshStatus()
         }
 
-        durationGroup.setOnCheckedChangeListener { _, _ ->
+        tabMode.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab) {
+                if (bindingUi) return
+                loadConfigIntoUi(modeFromTabPosition(tab.position))
+                persistCurrentUiState()
+                refreshStatus()
+            }
+
+            override fun onTabUnselected(tab: TabLayout.Tab) = Unit
+            override fun onTabReselected(tab: TabLayout.Tab) = Unit
+        })
+
+        durationGroupLegacy.setOnCheckedChangeListener { _, _ ->
+            if (!bindingUi) {
+                syncCustomDurationVisibility()
+                persistCurrentUiState()
+            }
+        }
+        durationGroupQzone.setOnCheckedChangeListener { _, _ ->
             if (!bindingUi) {
                 syncCustomDurationVisibility()
                 persistCurrentUiState()
             }
         }
 
-        inputCustomDuration.doAfterTextChanged {
-            if (!bindingUi && selectedDuration() == RunDuration.CUSTOM) {
+        inputCustomDurationLegacy.doAfterTextChanged {
+            if (!bindingUi && selectedLegacyDuration() == RunDuration.CUSTOM) {
+                persistCurrentUiState()
+            }
+        }
+        inputCustomDurationQzone.doAfterTextChanged {
+            if (!bindingUi && selectedQzoneDuration() == RunDuration.CUSTOM) {
                 persistCurrentUiState()
             }
         }
@@ -174,9 +226,14 @@ class MainActivity : AppCompatActivity() {
         }
 
         listOf(
-            switchAutoRun,
-            switchSkipAds,
-            switchRandomDelay,
+            switchAutoRunLegacy,
+            switchSkipAdsLegacy,
+            switchRandomDelayLegacy,
+            switchSinglePassLegacy,
+            switchStopOnOldLegacy,
+            switchAutoRunQzone,
+            switchSkipAdsQzone,
+            switchRandomDelayQzone,
         ).forEach { switchView ->
             switchView.setOnCheckedChangeListener { _, _ ->
                 if (!bindingUi) {
@@ -187,56 +244,118 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun loadConfigIntoUi() {
+    private fun loadConfigIntoUi(forceMode: AutomationMode? = null) {
         val config = configStore.load()
+        val mode = forceMode ?: config.mode
         bindingUi = true
-        switchAutoRun.isChecked = config.autoRunOnQqOpen
-        switchSkipAds.isChecked = config.skipAds
-        switchRandomDelay.isChecked = config.randomDelay
-        inputCustomDuration.setText(config.customRunMinutes.toString())
+
+        selectTab(mode)
+        showModePage(mode)
+
+        bindLegacyConfig(config)
+        bindQzoneConfig(config)
+        syncCustomDurationVisibility()
+
+        bindingUi = false
+    }
+
+    private fun bindLegacyConfig(config: AppConfig) {
+        switchAutoRunLegacy.isChecked = config.autoRunOnQqOpen
+        switchSkipAdsLegacy.isChecked = config.skipAds
+        switchRandomDelayLegacy.isChecked = config.randomDelay
+        switchSinglePassLegacy.isChecked = config.singlePassPerOpen
+        switchStopOnOldLegacy.isChecked = config.stopOnOlderPosts
+        inputCustomDurationLegacy.setText(config.customRunMinutes.toString())
+        durationGroupLegacy.check(
+            when (config.runDuration) {
+                RunDuration.MINUTES_5 -> R.id.durationLegacy5
+                RunDuration.MINUTES_10 -> R.id.durationLegacy10
+                RunDuration.CUSTOM -> R.id.durationLegacyCustom
+            },
+        )
+    }
+
+    private fun bindQzoneConfig(config: AppConfig) {
+        switchAutoRunQzone.isChecked = config.autoRunOnQqOpen
+        switchSkipAdsQzone.isChecked = config.skipAds
+        switchRandomDelayQzone.isChecked = config.randomDelay
+        inputCustomDurationQzone.setText(config.customRunMinutes.toString())
+        durationGroupQzone.check(
+            when (config.runDuration) {
+                RunDuration.MINUTES_5 -> R.id.durationQzone5
+                RunDuration.MINUTES_10 -> R.id.durationQzone10
+                RunDuration.CUSTOM -> R.id.durationQzoneCustom
+            },
+        )
         inputMyQq.setText(config.myQq)
         inputQzoneCookie.setText(config.qzoneCookie)
         inputPollInterval.setText(config.pollIntervalMinutes.toString())
         inputMinLikeAge.setText(config.minLikeAgeMinutes.toString())
         inputMaxLikesPerSession.setText(config.maxLikesPerSession.toString())
-        durationGroup.check(
-            when (config.runDuration) {
-                RunDuration.MINUTES_5 -> R.id.duration5
-                RunDuration.MINUTES_10 -> R.id.duration10
-                RunDuration.CUSTOM -> R.id.durationCustom
-            },
-        )
-        syncCustomDurationVisibility()
-        bindingUi = false
     }
 
     private fun persistCurrentUiState() {
+        val selectedMode = selectedMode()
         configStore.save(
             AppConfig(
-                autoRunOnQqOpen = switchAutoRun.isChecked,
-                skipAds = switchSkipAds.isChecked,
-                randomDelay = switchRandomDelay.isChecked,
+                mode = selectedMode,
+                autoRunOnQqOpen = when (selectedMode) {
+                    AutomationMode.LEGACY_UI -> switchAutoRunLegacy.isChecked
+                    AutomationMode.QZONE_QUEUE -> switchAutoRunQzone.isChecked
+                },
+                skipAds = when (selectedMode) {
+                    AutomationMode.LEGACY_UI -> switchSkipAdsLegacy.isChecked
+                    AutomationMode.QZONE_QUEUE -> switchSkipAdsQzone.isChecked
+                },
+                randomDelay = when (selectedMode) {
+                    AutomationMode.LEGACY_UI -> switchRandomDelayLegacy.isChecked
+                    AutomationMode.QZONE_QUEUE -> switchRandomDelayQzone.isChecked
+                },
+                singlePassPerOpen = switchSinglePassLegacy.isChecked,
+                stopOnOlderPosts = switchStopOnOldLegacy.isChecked,
+                runDuration = when (selectedMode) {
+                    AutomationMode.LEGACY_UI -> selectedLegacyDuration()
+                    AutomationMode.QZONE_QUEUE -> selectedQzoneDuration()
+                },
+                customRunMinutes = when (selectedMode) {
+                    AutomationMode.LEGACY_UI -> selectedLegacyCustomRunMinutes()
+                    AutomationMode.QZONE_QUEUE -> selectedQzoneCustomRunMinutes()
+                },
                 myQq = inputMyQq.text?.toString().orEmpty(),
                 qzoneCookie = inputQzoneCookie.text?.toString().orEmpty(),
                 pollIntervalMinutes = selectedPollIntervalMinutes(),
                 minLikeAgeMinutes = selectedMinLikeAgeMinutes(),
                 maxLikesPerSession = selectedMaxLikesPerSession(),
-                runDuration = selectedDuration(),
-                customRunMinutes = selectedCustomRunMinutes(),
             ),
         )
     }
 
-    private fun selectedDuration(): RunDuration {
-        return when (durationGroup.checkedRadioButtonId) {
-            R.id.duration5 -> RunDuration.MINUTES_5
-            R.id.durationCustom -> RunDuration.CUSTOM
+    private fun selectedLegacyDuration(): RunDuration {
+        return when (durationGroupLegacy.checkedRadioButtonId) {
+            R.id.durationLegacy5 -> RunDuration.MINUTES_5
+            R.id.durationLegacyCustom -> RunDuration.CUSTOM
             else -> RunDuration.MINUTES_10
         }
     }
 
-    private fun selectedCustomRunMinutes(): Int {
-        return inputCustomDuration.text?.toString()
+    private fun selectedQzoneDuration(): RunDuration {
+        return when (durationGroupQzone.checkedRadioButtonId) {
+            R.id.durationQzone5 -> RunDuration.MINUTES_5
+            R.id.durationQzoneCustom -> RunDuration.CUSTOM
+            else -> RunDuration.MINUTES_10
+        }
+    }
+
+    private fun selectedLegacyCustomRunMinutes(): Int {
+        return inputCustomDurationLegacy.text?.toString()
+            ?.trim()
+            ?.toIntOrNull()
+            ?.coerceIn(AppConfig.MIN_CUSTOM_RUN_MINUTES, AppConfig.MAX_CUSTOM_RUN_MINUTES)
+            ?: AppConfig.DEFAULT_CUSTOM_RUN_MINUTES
+    }
+
+    private fun selectedQzoneCustomRunMinutes(): Int {
+        return inputCustomDurationQzone.text?.toString()
             ?.trim()
             ?.toIntOrNull()
             ?.coerceIn(AppConfig.MIN_CUSTOM_RUN_MINUTES, AppConfig.MAX_CUSTOM_RUN_MINUTES)
@@ -268,7 +387,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun syncCustomDurationVisibility() {
-        inputCustomDuration.isVisible = selectedDuration() == RunDuration.CUSTOM
+        inputCustomDurationLegacy.isVisible = selectedLegacyDuration() == RunDuration.CUSTOM
+        inputCustomDurationQzone.isVisible = selectedQzoneDuration() == RunDuration.CUSTOM
     }
 
     private fun refreshStatus() {
@@ -297,7 +417,10 @@ class MainActivity : AppCompatActivity() {
         textRuntimeStatus.setText(
             when {
                 isRunning -> R.string.status_runtime_running
-                config.autoRunOnQqOpen && serviceEnabled -> R.string.status_runtime_waiting
+                config.autoRunOnQqOpen && serviceEnabled && config.mode == AutomationMode.QZONE_QUEUE ->
+                    R.string.status_runtime_waiting_qzone
+                config.autoRunOnQqOpen && serviceEnabled ->
+                    R.string.status_runtime_waiting_legacy
                 else -> R.string.status_runtime_idle
             },
         )
@@ -324,6 +447,26 @@ class MainActivity : AppCompatActivity() {
             return
         }
         notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    private fun selectedMode(): AutomationMode {
+        return modeFromTabPosition(tabMode.selectedTabPosition)
+    }
+
+    private fun modeFromTabPosition(position: Int): AutomationMode {
+        return if (position == 0) AutomationMode.LEGACY_UI else AutomationMode.QZONE_QUEUE
+    }
+
+    private fun selectTab(mode: AutomationMode) {
+        val target = if (mode == AutomationMode.LEGACY_UI) 0 else 1
+        if (tabMode.selectedTabPosition != target) {
+            tabMode.getTabAt(target)?.select()
+        }
+    }
+
+    private fun showModePage(mode: AutomationMode) {
+        pageLegacy.isVisible = mode == AutomationMode.LEGACY_UI
+        pageQzone.isVisible = mode == AutomationMode.QZONE_QUEUE
     }
 
     private fun isQqInstalled(): Boolean {

@@ -9,6 +9,8 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityManager
 import io.github.yanganqi.qqspaceautolike.R
 import io.github.yanganqi.qqspaceautolike.automation.AutomationOrchestrator
+import io.github.yanganqi.qqspaceautolike.automation.LegacyUiAutomationOrchestrator
+import io.github.yanganqi.qqspaceautolike.config.AutomationMode
 import io.github.yanganqi.qqspaceautolike.config.AppConfig
 import io.github.yanganqi.qqspaceautolike.config.ConfigStore
 import kotlinx.coroutines.CancellationException
@@ -116,7 +118,10 @@ class QqAutoLikeService : AccessibilityService() {
         feedPollingJob = serviceScope.launch(Dispatchers.IO) {
             while (isActive) {
                 val configSnapshot = currentConfig
-                if (configSnapshot.autoRunOnQqOpen && automationJob == null) {
+                if (configSnapshot.mode == AutomationMode.QZONE_QUEUE &&
+                    configSnapshot.autoRunOnQqOpen &&
+                    automationJob == null
+                ) {
                     val statusText = runCatching {
                         AutomationOrchestrator(
                             service = this@QqAutoLikeService,
@@ -157,13 +162,27 @@ class QqAutoLikeService : AccessibilityService() {
             updateRunningStatus(getString(R.string.notification_running_text))
             stopOverlayController.show()
             try {
-                val summary = AutomationOrchestrator(
-                    service = this@QqAutoLikeService,
-                    config = configSnapshot,
-                    stopRequested = ::isStopRequested,
-                    onStatus = ::updateRunningStatus,
-                ).run()
-                finishStatus("本轮结束：${summary.reason}；补赞 ${summary.likesPerformed} 条")
+                val summary = when (configSnapshot.mode) {
+                    AutomationMode.LEGACY_UI -> {
+                        LegacyUiAutomationOrchestrator(
+                            service = this@QqAutoLikeService,
+                            config = configSnapshot,
+                            stopRequested = ::isStopRequested,
+                            onStatus = ::updateRunningStatus,
+                        ).run()
+                    }
+
+                    AutomationMode.QZONE_QUEUE -> {
+                        AutomationOrchestrator(
+                            service = this@QqAutoLikeService,
+                            config = configSnapshot,
+                            stopRequested = ::isStopRequested,
+                            onStatus = ::updateRunningStatus,
+                        ).run()
+                    }
+                }
+                val actionWord = if (configSnapshot.mode == AutomationMode.LEGACY_UI) "点赞" else "补赞"
+                finishStatus("本轮结束：${summary.reason}；$actionWord ${summary.likesPerformed} 条")
                 delay(900)
             } catch (cancelled: CancellationException) {
                 finishStatus("任务已停止")
