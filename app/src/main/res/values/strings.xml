@@ -2,7 +2,7 @@
     <string name="app_name">QQ 空间自动补赞</string>
     <string name="accessibility_service_name">QQ 空间自动补赞服务</string>
     <string name="accessibility_service_description">仅适用于手机 QQ：支持旧的无障碍点按模式，以及新的 Qzone Cookie 队列补赞模式。</string>
-    <string name="screen_subtitle">仅适用于手机 QQ。你可以在旧方法和新方法之间切换：旧方法仍走无障碍点按，新方法走 Qzone Cookie 队列补赞，只会在你打开手机 QQ 时随机补赞。</string>
+    <string name="screen_subtitle">仅适用于手机 QQ。你可以在旧方法和新方法之间切换：旧方法仍走无障碍点按，新方法走 Qzone Cookie 队列补赞，只要手机 QQ 在前台就会后台尝试，无需手动进入好友动态页。</string>
     <string name="status_title">运行状态</string>
     <string name="runtime_title">运行时长</string>
     <string name="account_title">Qzone 凭据</string>
@@ -11,7 +11,7 @@
     <string name="mode_legacy_title">旧方法</string>
     <string name="mode_qzone_title">新方法</string>
     <string name="mode_legacy_intro">旧方法使用 AccessibilityService 进入好友动态页面后直接识别卡片并点按点赞按钮。优点是不需要 Cookie；缺点是容易受 QQ UI 变化、长短卡片、广告卡片和图片点击误触影响。</string>
-    <string name="mode_qzone_intro">新方法会在后台轮询 Qzone 好友动态，把可补赞内容先放进本地队列。只有当你这台手机上的手机 QQ 进入前台时，才按随机延迟执行一轮补赞，不走秒赞。</string>
+    <string name="mode_qzone_intro">新方法会在后台轮询 Qzone 好友动态，把可补赞内容先放进本地队列。只要你这台手机上的手机 QQ 进入前台，就会按随机延迟尝试一轮补赞；不需要手动进入好友动态页，也不依赖页面上找点赞按钮。</string>
     <string name="action_enable_accessibility">打开无障碍设置</string>
     <string name="action_run_once">按当前方法执行一轮</string>
     <string name="action_stop_run">停止当前任务</string>
@@ -57,6 +57,7 @@
     <string name="toast_notifications_missing">建议允许通知权限，否则无法显示停止按钮。</string>
     <string name="toast_qq_missing">没有检测到手机 QQ 安装包。</string>
     <string name="toast_run_started">已开始执行，若手机 QQ 不在前台会先尝试拉起。</string>
+    <string name="toast_run_started_qzone">已开始执行；新方法只需要手机 QQ 进入前台，不需要手动进入好友动态页。</string>
     <string name="toast_run_failed">服务未就绪，无法开始执行。</string>
     <string name="toast_run_stopped">已请求停止当前任务。</string>
     <string name="toast_no_running_task">当前没有正在执行的任务。</string>

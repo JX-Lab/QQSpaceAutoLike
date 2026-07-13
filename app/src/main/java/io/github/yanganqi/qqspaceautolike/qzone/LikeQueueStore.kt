@@ -73,6 +73,41 @@ class LikeQueueStore(context: Context) {
         }
     }
 
+    fun inspectPendingWindow(
+        minLikeAgeMinutes: Int,
+        retentionHours: Int,
+    ): PendingWindowStatus {
+        return synchronized(lock) {
+            val state = pruneState(loadState(), retentionHours)
+            saveState(state)
+            val minAgeMs = minLikeAgeMinutes.coerceIn(1, 24 * 60) * 60_000L
+            val now = System.currentTimeMillis()
+
+            var eligibleCount = 0
+            var shortestWaitMs: Long? = null
+
+            state.pending.forEach { item ->
+                val remainingMs = minAgeMs - (now - item.discoveredAt)
+                if (remainingMs <= 0L) {
+                    eligibleCount += 1
+                } else {
+                    val currentShortestWaitMs = shortestWaitMs
+                    if (currentShortestWaitMs == null || remainingMs < currentShortestWaitMs) {
+                        shortestWaitMs = remainingMs
+                    }
+                }
+            }
+
+            PendingWindowStatus(
+                pendingCount = state.pending.size,
+                eligibleCount = eligibleCount,
+                shortestWaitMinutes = shortestWaitMs?.let { waitMs ->
+                    ((waitMs + 59_999L) / 60_000L).toInt().coerceAtLeast(1)
+                },
+            )
+        }
+    }
+
     fun markSuccess(
         item: PendingLike,
         retentionHours: Int,
@@ -237,3 +272,9 @@ class LikeQueueStore(context: Context) {
         private val lock = Any()
     }
 }
+
+data class PendingWindowStatus(
+    val pendingCount: Int,
+    val eligibleCount: Int,
+    val shortestWaitMinutes: Int?,
+)

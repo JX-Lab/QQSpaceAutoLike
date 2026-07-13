@@ -35,7 +35,7 @@ class AutomationOrchestrator(
             return ScanSummary(0, 0, error.message ?: "Qzone 配置无效")
         }
 
-        onStatus("正在刷新好友动态队列")
+        onStatus("正在后台检查可补赞队列")
         val pollResult = client.fetchRecentMoodFeeds(skipAds = config.skipAds)
         if (pollResult.cookieInvalid) {
             return ScanSummary(0, 0, "Qzone Cookie 可能已失效，请重新抓取")
@@ -56,7 +56,24 @@ class AutomationOrchestrator(
             retentionHours = config.queueRetentionHours,
         )
         if (eligible.isEmpty()) {
-            return ScanSummary(0, 0, "待补赞动态还在延迟窗口，暂不执行")
+            val window = queueStore.inspectPendingWindow(
+                minLikeAgeMinutes = config.minLikeAgeMinutes,
+                retentionHours = config.queueRetentionHours,
+            )
+            val reason = buildString {
+                append("待补赞 ")
+                append(window.pendingCount)
+                append(" 条，但都还在延迟窗口（最短延迟 ")
+                append(config.minLikeAgeMinutes)
+                append(" 分钟")
+                window.shortestWaitMinutes?.let { waitMinutes ->
+                    append("，最早还需 ")
+                    append(waitMinutes)
+                    append(" 分钟")
+                }
+                append("），本次未发起点赞")
+            }
+            return ScanSummary(0, 0, reason)
         }
 
         val deadline = config.effectiveRunMinutes()?.let { System.currentTimeMillis() + it * 60_000L }

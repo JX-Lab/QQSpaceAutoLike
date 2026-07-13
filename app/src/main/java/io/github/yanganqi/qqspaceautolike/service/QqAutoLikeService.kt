@@ -160,7 +160,10 @@ class QqAutoLikeService : AccessibilityService() {
         val configSnapshot = currentConfig
         automationJob = serviceScope.launch {
             updateRunningStatus(getString(R.string.notification_running_text))
-            stopOverlayController.show()
+            val shouldShowOverlay = configSnapshot.mode == AutomationMode.LEGACY_UI
+            if (shouldShowOverlay) {
+                stopOverlayController.show()
+            }
             try {
                 val summary = when (configSnapshot.mode) {
                     AutomationMode.LEGACY_UI -> {
@@ -191,7 +194,9 @@ class QqAutoLikeService : AccessibilityService() {
                 finishStatus("执行失败：${error.message ?: "未知错误"}")
                 delay(1_200)
             } finally {
-                stopOverlayController.hide()
+                if (shouldShowOverlay) {
+                    stopOverlayController.hide()
+                }
                 notificationFactory.cancel()
                 stopRequested = false
                 automationJob = null

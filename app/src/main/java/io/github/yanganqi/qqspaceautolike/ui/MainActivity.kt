@@ -180,7 +180,13 @@ class MainActivity : AppCompatActivity() {
             }
 
             if (QqAutoLikeService.requestManualRun()) {
-                toast(R.string.toast_run_started)
+                toast(
+                    if (selectedMode() == AutomationMode.QZONE_QUEUE) {
+                        R.string.toast_run_started_qzone
+                    } else {
+                        R.string.toast_run_started
+                    },
+                )
             } else {
                 toast(R.string.toast_run_failed)
             }
