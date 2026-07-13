@@ -3,9 +3,13 @@ package io.github.yanganqi.qqspaceautolike.ui
 import android.app.Activity
 import android.content.Intent
 import android.graphics.Bitmap
+import android.net.Uri
 import android.os.Bundle
 import android.webkit.CookieManager
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
 import android.webkit.WebChromeClient
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.TextView
@@ -66,11 +70,18 @@ class CookieCaptureActivity : AppCompatActivity() {
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.settings.loadsImagesAutomatically = true
+        webView.settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
         webView.settings.userAgentString =
             "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36"
 
         webView.webChromeClient = WebChromeClient()
         webView.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                val upgradedUrl = upgradeCleartextQqUrl(request?.url) ?: return false
+                view?.loadUrl(upgradedUrl.toString())
+                return true
+            }
+
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 updateStatus(getString(R.string.cookie_capture_status_loading))
             }
@@ -87,6 +98,17 @@ class CookieCaptureActivity : AppCompatActivity() {
                     )
                 } else {
                     updateStatus(getString(R.string.cookie_capture_status_waiting_login))
+                }
+            }
+
+            override fun onReceivedError(
+                view: WebView?,
+                request: WebResourceRequest?,
+                error: WebResourceError?,
+            ) {
+                val upgradedUrl = upgradeCleartextQqUrl(request?.url)
+                if (request?.isForMainFrame == true && upgradedUrl != null) {
+                    view?.post { view.loadUrl(upgradedUrl.toString()) }
                 }
             }
         }
@@ -115,6 +137,8 @@ class CookieCaptureActivity : AppCompatActivity() {
     private fun collectCookie(): String {
         val cookieManager = CookieManager.getInstance()
         return listOf(
+            "https://i.qq.com/",
+            "https://m.qzone.com/",
             "https://user.qzone.qq.com/",
             "https://h5.qzone.qq.com/",
             "https://qzone.qq.com/",
@@ -128,10 +152,27 @@ class CookieCaptureActivity : AppCompatActivity() {
         textStatus.text = text
     }
 
+    private fun upgradeCleartextQqUrl(uri: Uri?): Uri? {
+        if (uri?.scheme != "http") {
+            return null
+        }
+
+        val host = uri.host?.lowercase() ?: return null
+        if (host == "localhost") {
+            return null
+        }
+
+        return if (host.endsWith(".qq.com") || host.endsWith(".qzone.com")) {
+            uri.buildUpon().scheme("https").build()
+        } else {
+            null
+        }
+    }
+
     companion object {
         const val EXTRA_COOKIE = "cookie"
         const val EXTRA_MY_QQ = "my_qq"
 
-        private const val START_URL = "https://user.qzone.qq.com/"
+        private const val START_URL = "https://i.qq.com/"
     }
 }
